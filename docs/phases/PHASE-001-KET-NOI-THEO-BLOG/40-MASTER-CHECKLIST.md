@@ -1,5 +1,7 @@
 # PHASE-001 (bridge) · 40 — Master checklist
 
+<!-- [2026-11-21 07:30 PM Johnny Chu - Chu Hoàng Anh] Rà soát theo ADR-OKT-1 I-0 (open-pos-backend PHASE-002 doc 30): ghi điều kiện cho C7, C12. -->
+
 > ☐ chưa làm · 🟡 có mã + test · ✅ có bằng chứng chạy thật · ⛔ chờ chủ / repo khác · ⏸ hoãn · ❌ huỷ.
 > Nơi giữ trạng thái **duy nhất** của `B001-*`. Mốc M1–M5 theo bản đồ chương trình (tsm `05-CHUONG-TRINH-3-REPO.md`). Mã việc C1–C14 trùng với `docs/CAU-HINH-KET-NOI.md §8` (C1–C7) và mở rộng.
 
@@ -30,7 +32,7 @@
 | ID | Việc | Doc | Trạng thái |
 |---|---|---|---|
 | B001-C5 | `/ketoan-events`: xác thực → `tenantId` → blog (bản đồ C6) → `switch_to_blog` → mirror; không tìm ra → 404; `/catalog-changed`: xác thực theo tenant (khoá của blog hoặc chữ ký), phát `tgs_okt_catalog_changed($blog, $payload)`, **không kéo**; `/pending`, `/sites`: blog theo tenant của khoá gọi, bỏ `?shops=` và `branchCode` | 10 §5 | ⛔ chờ tsm S001-C8 (có người lắng hook) |
-| B001-C7 | Gỡ `includes/class-tgs-acc-catalog-sync.php` (require ở bootstrap :68 / :82), `tools/danh-muc-hang.php`, option `catalog_from_erp` (config :34 / :236-238 / :166-167, admin :390), 5 site option `tgs_acc_catalog_*`, filter `tgs_catalog_readonly` / `tgs_price_edit_locked`; giữ §4 doc 10 làm tham chiếu cho tsm | 10 §4 | ⛔ chờ tsm S001-C8 chạy trên site thử |
+| B001-C7 | Gỡ `includes/class-tgs-acc-catalog-sync.php` (require ở bootstrap :68 / :82), `tools/danh-muc-hang.php`, option `catalog_from_erp` (config :34 / :236-238 / :166-167, admin :390), 5 site option `tgs_acc_catalog_*`, filter `tgs_catalog_readonly` / `tgs_price_edit_locked`; giữ §4 doc 10 làm tham chiếu cho tsm | 10 §4 | ⛔ chờ tsm S001-C8 chạy trên site thử · gỡ **cùng lúc** bộ kéo C8 chạy, không để khoảng trống ở bảng POS đọc (ADR-OKT-1 I-0) |
 | B001-C9 | `TGS_Acc_Lists` cache khoá `blog\|kind`, client theo blog; `TGS_Acc_Warehouse_Sync` map theo blog, `sync()` theo khoá blog; `TGS_Acc_Supplier_Sync` **tạm tắt** cho blog không có bảng NCC theo blog (mua hàng ngoài phase) | 00 B001-9 | ☐ |
 
 ## M4 — chứng từ theo tenant
@@ -40,7 +42,7 @@
 | B001-C8 | `tgs_acc_push_log(_tax)`: thêm `tenant VARCHAR(64)`, `server_url`; `UNIQUE(tenant, doc_key)`; `find_many` / `keys_in_range` / `search` / `stats` lọc theo tenant; DB_VERSION 4; bỏ cảnh báo admin :401-405 | 10 §6 | ☐ |
 | B001-C10 | `includes/class-tgs-acc-source-pos.php`: `sale_rows` / `return_rows` từ `{B}local_ledger` 10 / 11 (đã duyệt, không `pg:`), dòng từ phiếu xuất con loại 2 / phiếu hoàn (khuôn `supplier_doc_items`), không `invoice`; `TGS_Acc_Source::for_blog($blog)` chọn tgs-bc-tk nếu có, không thì POS; thay guard `ready()` ở gate :200, events :426, admin :247, day-ke-toan :109; danh sách shop = blog đã kết nối | 10 §3 | ☐ (Q001-15 ✅ 21/11) |
 | B001-C11 | Bỏ `branchCode` chi nhánh (mapper 9 chỗ → chi nhánh mặc định của tenant từ `tgs_okt_connection()`), bỏ `ensure_branch` (pusher :405-424), gỡ `class-tgs-acc-branch-sync.php` + hook bootstrap :80, option `tgs_acc_known_branches(_tax)`, `tgs_acc_branch_sync_last`; chuyển kho / chuyển tiền chéo blog khác tenant → bỏ qua + log (00 §5) | 10 §1 | ☐ |
-| B001-C12 | SSO: `tenant` và URL theo blog đang đứng; `sso_tenant` xuống tầng B; `safe_return()` so với `url_for($blog)` | 10 §7 | ☐ |
+| B001-C12 | SSO: `tenant` và URL theo blog đang đứng; `sso_tenant` xuống tầng B; `safe_return()` so với `url_for($blog)` | 10 §7 | ☐ · ⚠️ chạm vé đăng nhập của POS React (`react-shell.php` đọc `sso_secret()` / `sso_tenant()`): một tenant thì hành vi **giống hệt**; ca đăng nhập React trước–sau (ADR-OKT-1 I-0) |
 | B001-C13 | `TGS_Acc_Trade_Mapper::catalog()` :315-326 đọc `tgs_catalog_table('product', $blog)` | 10 §1 | ⛔ chờ tsm S001-C11 |
 | B001-T4 | `tests/source-pos-test.php` (fixture sổ POS → chứng từ, không `invoice`), `tests/push-log-tenant-test.php` | 70 | ☐ |
 
