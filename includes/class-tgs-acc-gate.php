@@ -198,7 +198,7 @@ class TGS_Acc_Gate
             return new WP_Error('tgs_acc_gate_range', 'Cần from, to dạng YYYY-MM-DD (from ≤ to)', ['status' => 400]);
         }
         if (!TGS_Acc_Source::ready()) {
-            return new WP_Error('tgs_acc_gate_source', 'Chưa bật plugin tgs-bc-tk (nguồn dữ liệu phiếu bán / hoàn)', ['status' => 503]);
+            return new WP_Error('tgs_acc_gate_source', 'Chưa có nguồn phiếu bán / hoàn: cài tgs-bc-tk, hoặc bật nguồn sổ POS (option tgs_acc_sale_source = pos)', ['status' => 503]);
         }
         TGS_Acc_Push_Log::maybe_install();
         $blogs = self::blogs($req);

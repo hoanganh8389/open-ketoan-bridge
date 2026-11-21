@@ -423,8 +423,9 @@ class TGS_Acc_Events
     private static function build($blog_id, array $ledger_ids, array $ct_ids, array $gt_ids = [])
     {
         try {
-            if (!TGS_Acc_Source::ready()) {
-                return ['error' => 'Chưa bật plugin nguồn dữ liệu phiếu (tgs-bc-tk)'];
+            // [2026-11-21 08:11 PM Johnny Chu - Chu Hoàng Anh] S002-4 — nguồn phiếu theo blog (tgs-bc-tk hoặc sổ POS).
+            if (!TGS_Acc_Source::ready($blog_id)) {
+                return ['error' => 'Chưa có nguồn phiếu bán / hoàn: cài tgs-bc-tk, hoặc bật nguồn sổ POS (option tgs_acc_sale_source = pos)'];
             }
             TGS_Acc_Push_Log::maybe_install();
             return TGS_Acc_Pusher::build_refs($blog_id, $ledger_ids, $ct_ids, $gt_ids);
