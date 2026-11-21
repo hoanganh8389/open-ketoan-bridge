@@ -244,8 +244,9 @@ class TGS_Acc_Admin
             wp_send_json_error(['message' => 'Shop #' . $blog . ' không nằm trong danh sách shop áp dụng thuế.']);
         }
         list($from, $to) = self::read_range();
-        if (!TGS_Acc_Source::ready()) {
-            wp_send_json_error(['message' => 'Thiếu plugin tgs-bc-tk (bản có vat_rows_for_export).']);
+        // [2026-11-21 08:11 PM Johnny Chu - Chu Hoàng Anh] S002-4 — nguồn phiếu theo blog (tgs-bc-tk hoặc sổ POS).
+        if (!TGS_Acc_Source::ready($blog)) {
+            wp_send_json_error(['message' => 'Chưa có nguồn phiếu bán / hoàn: cài tgs-bc-tk, hoặc bật nguồn sổ POS (option tgs_acc_sale_source = pos).']);
         }
         if (!$dry && !TGS_Acc_Config::ready()) {
             wp_send_json_error(['message' => 'Chưa khai địa chỉ / khoá phần mềm kế toán (Cổng kế toán → Cài đặt).']);

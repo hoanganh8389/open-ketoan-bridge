@@ -30,6 +30,7 @@
  *   includes/class-tgs-acc-config.php       cấu hình kết nối (wp-config ưu tiên, sau đó site option)
  *   includes/class-tgs-acc-api-client.php   gọi API (X-Api-Key, khuôn { ok, data|error }), nhật ký 60 lượt gọi
  *   includes/class-tgs-acc-source.php       đọc dữ liệu shop: dòng VAT (tgs-bc-tk) + phiếu thu
+ *   includes/class-tgs-acc-source-pos.php   nguồn thứ hai: phiếu bán / hoàn đọc thẳng sổ POS khi không có tgs-bc-tk
  *   includes/class-tgs-acc-mapper.php       dòng VAT → khuôn chứng từ của phần mềm kế toán
  *   includes/class-tgs-acc-push-log.php     nhật ký gửi (bảng global), quyết định phiên bản
  *   includes/class-tgs-acc-pusher.php       điều phối: đọc → dựng → so nhật ký → gửi → ghi kết quả (+ ghi lượt gửi)
@@ -56,6 +57,7 @@ define('TGS_ACC_BRIDGE_PATH', plugin_dir_path(__FILE__));
 require_once TGS_ACC_BRIDGE_PATH . 'includes/class-tgs-acc-config.php';
 require_once TGS_ACC_BRIDGE_PATH . 'includes/class-tgs-acc-api-client.php';
 require_once TGS_ACC_BRIDGE_PATH . 'includes/class-tgs-acc-source.php';
+require_once TGS_ACC_BRIDGE_PATH . 'includes/class-tgs-acc-source-pos.php'; // [2026-11-21 08:11 PM Johnny Chu - Chu Hoàng Anh] S002-4 — nguồn phiếu bán / hoàn từ sổ POS khi không có tgs-bc-tk (chỉ đọc)
 require_once TGS_ACC_BRIDGE_PATH . 'includes/class-tgs-acc-mapper.php';
 require_once TGS_ACC_BRIDGE_PATH . 'includes/class-tgs-acc-push-log.php';
 require_once TGS_ACC_BRIDGE_PATH . 'includes/class-tgs-acc-pusher.php';

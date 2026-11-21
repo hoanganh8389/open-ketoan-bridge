@@ -3,7 +3,8 @@
  * Đọc dữ liệu của MỘT shop (chạy khi WordPress đã khởi động ngay trong shop đó).
  *
  * - Dòng VAT: lấy qua TGS_BCTK_Ajax::vat_rows_for_export() của plugin tgs-bc-tk — cùng
- *   luật tiền với màn Quản lý VAT (khớp hoá đơn eVAT đã phát hành), gồm bill Z.
+ *   luật tiền với màn Quản lý VAT (khớp hoá đơn eVAT đã phát hành), gồm bill Z. Không có tgs-bc-tk thì lấy thẳng sổ POS
+ *   (TGS_Acc_Source_Pos, cùng khuôn dòng, chỉ đọc) — xem sale_source().
  * - Phiếu thu (7, cha = phiếu bán 10) và phiếu chi trả khách (8, cha = phiếu hoàn 11): mỗi phiếu là một chứng từ thanh
  *   toán RIÊNG bên kế toán, ghi sổ theo ngày của chính phiếu (như phiếu thanh toán khách hàng tách khỏi hoá đơn).
  * - Phiếu bán / hoàn bị SỬA trong khoảng ngày dù thuộc ngày trước (updated_at) → dựng lại để gửi phiên bản mới.
@@ -18,9 +19,48 @@ class TGS_Acc_Source
     const TYPE_RECEIPT = 7;
     const TYPE_PAYMENT = 8;
 
-    public static function ready()
+    // [2026-11-21 08:11 PM Johnny Chu - Chu Hoàng Anh] S002-4 (= B001-C10) — có nguồn phiếu bán / hoàn khi KHÔNG có tgs-bc-tk: đọc thẳng sổ POS (TGS_Acc_Source_Pos, chỉ đọc). Có tgs-bc-tk thì vẫn ưu tiên (Q001-15).
+
+    /**
+     * Có nguồn dựng phiếu bán / hoàn cho blog không. $blog_id = 0: blog hiện tại.
+     * Không đổi hành vi cũ khi chưa bật nguồn sổ POS: thiếu tgs-bc-tk thì vẫn là "không có nguồn".
+     */
+    public static function ready($blog_id = 0)
+    {
+        return self::sale_source($blog_id) !== '';
+    }
+
+    /** Plugin tgs-bc-tk có mặt (dòng VAT khớp màn Quản lý VAT / hoá đơn eVAT). */
+    public static function bctk_ready()
     {
         return class_exists('TGS_BCTK_Ajax') && method_exists('TGS_BCTK_Ajax', 'vat_rows_for_export');
+    }
+
+    /**
+     * Nguồn phiếu bán / hoàn của blog: 'bctk' (tgs-bc-tk) · 'pos' (sổ POS, TGS_Acc_Source_Pos) · '' (không có).
+     *
+     * Nguồn sổ POS **mặc định tắt**, bật từng blog (ADR-OKT-1 I-6: quan sát trước khi bật) bằng một trong:
+     *   - hằng wp-config TGS_ACC_SALE_SOURCE = 'pos' (cả máy chủ);
+     *   - option của blog tgs_acc_sale_source = 'pos';
+     *   - filter tgs_acc_sale_source (giá trị 'auto' | 'bctk' | 'pos', tham số 2 = blog).
+     * 'auto' (mặc định): có tgs-bc-tk thì 'bctk', không thì '' — đúng như trước khi có nguồn sổ POS. 'bctk' mà plugin
+     * không có thì ''. Có tgs-bc-tk mà chọn 'pos' thì dùng sổ POS (Q001-15 ưu tiên tgs-bc-tk là mặc định, không ép).
+     */
+    public static function sale_source($blog_id = 0)
+    {
+        $blog_id = (int) $blog_id;
+        if (defined('TGS_ACC_SALE_SOURCE')) {
+            $want = (string) TGS_ACC_SALE_SOURCE;
+        } elseif ($blog_id > 0 && function_exists('get_blog_option')) {
+            $want = (string) get_blog_option($blog_id, 'tgs_acc_sale_source', 'auto');
+        } else {
+            $want = function_exists('get_option') ? (string) get_option('tgs_acc_sale_source', 'auto') : 'auto';
+        }
+        $want = (string) apply_filters('tgs_acc_sale_source', $want !== '' ? $want : 'auto', $blog_id);
+        if ($want === 'pos') {
+            return class_exists('TGS_Acc_Source_Pos') ? 'pos' : '';
+        }
+        return self::bctk_ready() ? 'bctk' : '';
     }
 
     /**
@@ -30,7 +70,14 @@ class TGS_Acc_Source
     public static function sale_rows($blog_id, $from, $to, array $ids = [])
     {
         // $ids: chỉ đúng các phiếu này (gửi tức thời theo sự kiện) — lọc ngay trong truy vấn, không dựng cả ngày.
-        $rows = self::only_approved($blog_id, TGS_BCTK_Ajax::vat_rows_for_export($blog_id, $from, $to, 'sale', 'all', $ids), 'sale_id');
+        $src = self::sale_source($blog_id);
+        if ($src === '') {
+            return [];
+        }
+        $raw = $src === 'bctk'
+            ? TGS_BCTK_Ajax::vat_rows_for_export($blog_id, $from, $to, 'sale', 'all', $ids)
+            : TGS_Acc_Source_Pos::sale_rows($blog_id, $from, $to, $ids);
+        $rows = self::only_approved($blog_id, $raw, 'sale_id');
         $reasons = self::export_reasons($blog_id, array_column($rows, 'sale_id'));
         foreach ($rows as &$r) {
             $r['export_reason'] = $reasons[(int) $r['sale_id']] ?? '';
@@ -68,6 +115,13 @@ class TGS_Acc_Source
      */
     public static function return_rows($blog_id, $from, $to)
     {
+        $src = self::sale_source($blog_id);
+        if ($src === '') {
+            return [];
+        }
+        if ($src === 'pos') {
+            return self::only_approved($blog_id, TGS_Acc_Source_Pos::return_rows($blog_id, $from, $to), '_ledger_id');
+        }
         $rows = (array) TGS_BCTK_Ajax::vat_rows_for_export($blog_id, $from, $to, 'return');
         foreach ($rows as &$r) {
             $r['_ledger_id'] = (int) ($r['return_id'] ?? 0) ?: (int) ($r['sale_id'] ?? 0);
