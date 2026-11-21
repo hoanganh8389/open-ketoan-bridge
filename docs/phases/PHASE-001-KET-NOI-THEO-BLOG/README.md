@@ -1,5 +1,7 @@
 # PHASE-001 (open-ketoan-bridge) — Kết nối theo blog: một blog = một tenant, bridge giữ kết nối, không kéo catalog
 
+> ⛔ **21/11 04:40 PM — open-ketoan bắt buộc, bỏ chế độ standalone (D001-15, [open-pos-backend 26](https://github.com/hoanganh8389/open-pos-backend/blob/docs/phase-001-danh-muc-theo-site/docs/phases/PHASE-001-DANH-MUC-THEO-SITE-DONG-BO-KETOAN/26-QUYET-DINH-OPEN-KETOAN-BAT-BUOC.md)).** Repo bạn đổi tên: **open-pos** (trước `tgs_pos`), **open-pos-backend** (trước `tgs_shop_management`). Bridge thành plugin **bắt buộc**; `tgs_okt_connected()` từ nay nghĩa là "blog sẵn sàng bán". **Không gỡ** `build_import` / `tools/danh-muc-hang.php nap` ở B001-C7 cho tới khi xong lần chuyển 92 blog lên open-ketoan (26 §4).
+
 > **Trạng thái:** 📄 tài liệu (B0), 2026-11-21 02:20 PM. Mã đã có: C1 ([PR #2](https://github.com/hoanganh8389/open-ketoan-bridge/pull/2), chưa merge). Trạng thái việc chỉ ở [40-MASTER-CHECKLIST](40-MASTER-CHECKLIST.md).
 > **Chương trình:** OKT — bản đồ chung ở tgs_shop_management `docs/phases/PHASE-001-DANH-MUC-THEO-SITE-DONG-BO-KETOAN/05-CHUONG-TRINH-3-REPO.md`; mục tiêu golden ở `01-GOLDEN-MUC-TIEU.md` cùng thư mục.
 > **Luật:** R-OKT-CONN (CANON open-ketoan `docs/rules/RULE-OPEN-POS-CONNECTION.md`, [PR #516](https://github.com/hoanganh8389/open-ketoan/pull/516)). **Cấu hình:** [`docs/CAU-HINH-KET-NOI.md`](../../CAU-HINH-KET-NOI.md) (PR #1) — bốn trường hợp, ba tầng, 13 tình huống K1–K13.
