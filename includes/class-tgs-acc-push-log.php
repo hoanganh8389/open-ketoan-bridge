@@ -125,7 +125,7 @@ class TGS_Acc_Push_Log
         global $wpdb;
         $t = self::table();
         return (array) $wpdb->get_col($wpdb->prepare(
-            "SELECT doc_key FROM {$t} WHERE blog_id = %d AND doc_type = %s AND doc_date BETWEEN %s AND %s AND status IN ('posted','error','gate')",
+            "SELECT doc_key FROM {$t} WHERE blog_id = %d AND doc_type = %s AND doc_date BETWEEN %s AND %s AND status IN ('posted','pending','remote_error','error','gate')",
             (int) $blog_id, $doc_type, $from, $to
         ));
     }
@@ -146,11 +146,55 @@ class TGS_Acc_Push_Log
             }
         }
         foreach (self::find_many(array_values(array_diff($deleted_keys, $present_keys))) as $key => $r) {
-            if (in_array($r['status'], ['posted', 'error', 'gate'], true)) {
+            if (in_array($r['status'], ['posted', 'pending', 'remote_error', 'error', 'gate'], true)) {
                 $out[$key] = true;
             }
         }
         return array_keys($out);
+    }
+
+    // [2026-11-21 08:45 PM Johnny Chu - Chu Hoàng Anh] S002-9, S002-10 — trạng thái 'pending' (kế toán đã nhận, chờ định khoản) và 'remote_error' (kế toán định khoản lỗi) tách khỏi 'posted'.
+    /**
+     * Trạng thái "kế toán đã có đúng phiên bản này": không gửi lại khi nội dung không đổi.
+     *   posted       — đã ghi sổ;
+     *   pending      — đã nhận, chờ định khoản (ACC14) — kéo trạng thái sẽ chuyển tiếp;
+     *   remote_error — kế toán nhận nhưng định khoản lỗi: gửi lại cùng nội dung chỉ được "unchanged", nên KHÔNG tự gửi lại;
+     *                  sửa ở kế toán hoặc sửa phiếu ở shop (nội dung đổi → phiên bản mới).
+     */
+    const DELIVERED = ['posted', 'pending', 'remote_error'];
+
+    public static function is_delivered($status)
+    {
+        return in_array((string) $status, self::DELIVERED, true);
+    }
+
+    /** Chứng từ đang chờ kế toán định khoản của một blog (cũ nhất trước). */
+    public static function pending_rows($blog_id, $limit = 50)
+    {
+        global $wpdb;
+        $t = self::table();
+        return (array) $wpdb->get_results($wpdb->prepare(
+            "SELECT doc_key, doc_type, doc_no, doc_date, version, content_hash FROM {$t} WHERE blog_id = %d AND status = 'pending' ORDER BY pushed_at ASC, id ASC LIMIT %d",
+            (int) $blog_id, max(1, (int) $limit)
+        ), ARRAY_A);
+    }
+
+    /** Các blog còn chứng từ chờ định khoản. */
+    public static function blogs_with_pending()
+    {
+        global $wpdb;
+        $t = self::table();
+        return array_map('intval', (array) $wpdb->get_col("SELECT DISTINCT blog_id FROM {$t} WHERE status = 'pending'"));
+    }
+
+    /** Đổi trạng thái theo kết quả kéo về; chỉ đổi dòng đúng phiên bản đang chờ (không đè phiên bản mới hơn). */
+    public static function set_status($doc_key, $version, $status, $message = '')
+    {
+        global $wpdb;
+        return (int) $wpdb->query($wpdb->prepare(
+            "UPDATE " . self::table() . " SET status = %s, message = %s, pushed_at = %s WHERE doc_key = %s AND version = %d AND status = 'pending'",
+            $status, $message, current_time('mysql'), $doc_key, (int) $version
+        ));
     }
 
     public static function save($blog_id, array $doc, $version, $hash, $status, $message = '')
