@@ -179,6 +179,24 @@ class TGS_Acc_Push_Log
         ), ARRAY_A);
     }
 
+    // [2026-11-21 09:00 PM Johnny Chu - Chu Hoàng Anh] S002-11 — số đếm nhật ký gửi của một blog cho lệnh `wp tgs-acc status`.
+    /** @return array{by_status: array<string,int>, pending_over_24h: int, last_pushed: string} */
+    public static function blog_stats($blog_id)
+    {
+        global $wpdb;
+        $t = self::table();
+        $by = [];
+        foreach ((array) $wpdb->get_results($wpdb->prepare("SELECT status, COUNT(*) AS n FROM {$t} WHERE blog_id = %d GROUP BY status", (int) $blog_id), ARRAY_A) as $r) {
+            $by[(string) $r['status']] = (int) $r['n'];
+        }
+        $old = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$t} WHERE blog_id = %d AND status = 'pending' AND pushed_at < %s",
+            (int) $blog_id, gmdate('Y-m-d H:i:s', strtotime(current_time('mysql')) - DAY_IN_SECONDS)
+        ));
+        $last = (string) $wpdb->get_var($wpdb->prepare("SELECT MAX(pushed_at) FROM {$t} WHERE blog_id = %d", (int) $blog_id));
+        return ['by_status' => $by, 'pending_over_24h' => $old, 'last_pushed' => $last];
+    }
+
     /** Các blog còn chứng từ chờ định khoản. */
     public static function blogs_with_pending()
     {

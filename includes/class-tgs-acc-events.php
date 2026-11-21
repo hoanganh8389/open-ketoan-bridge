@@ -46,6 +46,9 @@ class TGS_Acc_Events
     const CRON_HOOK = 'tgs_acc_events_retry';
     // [2026-11-21 08:45 PM Johnny Chu - Chu Hoàng Anh] S002-10 — cron kéo trạng thái chứng từ chờ định khoản (5 phút, site chính, lặp theo blog).
     const STATUS_HOOK = 'tgs_acc_status_pull';
+    // [2026-11-21 09:00 PM Johnny Chu - Chu Hoàng Anh] S002-13 — tạm dừng kết nối theo shop (option của blog, giữ khoá; R-OKT-CONN-12).
+    const PAUSE_OPTION = 'tgs_acc_paused';
+    const PAUSED_MSG = 'Tạm dừng kết nối của shop — gửi khi bỏ tạm dừng';
 
     /** Hàng đợi của request: "blog|kind" => [ref => op]. */
     private static $queue = [];
@@ -366,6 +369,13 @@ class TGS_Acc_Events
         @set_time_limit(120);
 
         foreach (self::group($rows) as $g) {
+            // [2026-11-21 09:00 PM Johnny Chu - Chu Hoàng Anh] S002-13 — shop đang tạm dừng kết nối: không gửi, xếp vào hàng chờ (không tính lần thử), gửi bù khi bỏ tạm dừng.
+            if (self::paused($g['blog'])) {
+                foreach (self::targets() as $target) {
+                    self::append($date, [['t' => self::now(), 'rid' => $g['ids'][0] . ($target ? '-' . $target : ''), 'target' => $target, 'blog' => $g['blog'], 'ledger' => $g['ledger'], 'ct' => $g['ct'], 'gt' => $g['gt'], 'n' => 0, 'next' => 0, 'paused' => 1, 'msg' => self::PAUSED_MSG]], 'retry');
+                }
+                continue;
+            }
             // Dựng MỘT lần, gửi từng nơi nhận (sổ nội bộ, sổ thuế).
             $built = self::build($g['blog'], $g['ledger'], $g['ct'], $g['gt']);
             foreach (self::targets() as $target) {
@@ -533,6 +543,10 @@ class TGS_Acc_Events
             if (!empty($r['closed']) || (!$force && (int) ($r['next'] ?? 0) > time())) {
                 continue;
             }
+            // [2026-11-21 09:00 PM Johnny Chu - Chu Hoàng Anh] S002-13 — shop tạm dừng: để nguyên trong hàng chờ, không gửi, không tăng số lần thử.
+            if (self::paused((int) ($r['blog'] ?? 0))) {
+                continue;
+            }
             if (time() - $t0 > 50 || $done >= 50) {
                 break;
             }
@@ -600,6 +614,9 @@ class TGS_Acc_Events
         try {
             TGS_Acc_Push_Log::use_consumer('');
             foreach (TGS_Acc_Push_Log::blogs_with_pending() as $blog_id) {
+                if (self::paused($blog_id)) {
+                    continue; // S002-13 — tạm dừng: không gọi kế toán
+                }
                 $client = TGS_Acc_Api_Client::for_blog($blog_id);
                 if (!$client->ready()) {
                     continue;
@@ -608,6 +625,56 @@ class TGS_Acc_Events
             }
         } finally {
             delete_site_option('tgs_acc_status_pull_lock');
+        }
+        return $out;
+    }
+
+
+    // [2026-11-21 09:00 PM Johnny Chu - Chu Hoàng Anh] S002-13 — tạm dừng / bỏ tạm dừng kết nối theo shop; hàng chờ của shop.
+    /** Shop đang tạm dừng kết nối (vẫn ghi sự kiện, không gửi, không thử lại, không hỏi trạng thái). */
+    public static function paused($blog_id)
+    {
+        $blog_id = (int) $blog_id;
+        return $blog_id > 0 && function_exists('get_blog_option') && (string) get_blog_option($blog_id, self::PAUSE_OPTION, '') !== '';
+    }
+
+    /** Tạm dừng: ghi thời điểm (giữ khoá, giữ cấu hình). */
+    public static function pause($blog_id)
+    {
+        return update_blog_option((int) $blog_id, self::PAUSE_OPTION, current_time('mysql'));
+    }
+
+    /**
+     * Bỏ tạm dừng: các nhóm đang chờ của shop đến hạn ngay — cron gửi lại (mỗi phút) gửi bù theo thứ tự thời gian, không trùng
+     * (docKey + phiên bản). Muốn gửi ngay: retry(true).
+     */
+    public static function resume($blog_id)
+    {
+        return delete_blog_option((int) $blog_id, self::PAUSE_OPTION);
+    }
+
+    /** Thời điểm bắt đầu tạm dừng ('' = không tạm dừng). */
+    public static function paused_since($blog_id)
+    {
+        return function_exists('get_blog_option') ? (string) get_blog_option((int) $blog_id, self::PAUSE_OPTION, '') : '';
+    }
+
+    /**
+     * Hàng chờ gửi của một shop (nhóm chưa đóng trong các tệp retry 7 ngày gần nhất).
+     * @return array{groups: int, paused: bool, oldest: string}  paused = shop đang tạm dừng (cả hàng chờ đang giữ lại)
+     */
+    public static function queue_of($blog_id)
+    {
+        $out = ['groups' => 0, 'paused' => self::paused($blog_id), 'oldest' => ''];
+        foreach (self::retry_state() as $r) {
+            if (!empty($r['closed']) || (int) ($r['blog'] ?? 0) !== (int) $blog_id) {
+                continue;
+            }
+            $out['groups']++;
+            $t = (string) ($r['t'] ?? '');
+            if ($t !== '' && ($out['oldest'] === '' || $t < $out['oldest'])) {
+                $out['oldest'] = $t;
+            }
         }
         return $out;
     }

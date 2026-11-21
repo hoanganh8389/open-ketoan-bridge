@@ -66,6 +66,7 @@ require_once TGS_ACC_BRIDGE_PATH . 'includes/class-tgs-acc-lists.php';
 require_once TGS_ACC_BRIDGE_PATH . 'includes/class-tgs-acc-admin.php';
 require_once TGS_ACC_BRIDGE_PATH . 'includes/class-tgs-acc-gate.php';
 require_once TGS_ACC_BRIDGE_PATH . 'includes/class-tgs-acc-events.php';
+require_once TGS_ACC_BRIDGE_PATH . 'includes/class-tgs-acc-cli.php'; // [2026-11-21 09:00 PM Johnny Chu - Chu Hoàng Anh] S002-8, 11, 13 — wp tgs-acc status / preflight / pause / resume
 require_once TGS_ACC_BRIDGE_PATH . 'includes/class-tgs-acc-embed.php';
 require_once TGS_ACC_BRIDGE_PATH . 'includes/class-tgs-acc-catalog-sync.php'; // danh mục hàng lấy từ phần mềm kế toán
 require_once TGS_ACC_BRIDGE_PATH . 'includes/class-tgs-acc-warehouse-sync.php'; // phân kho lấy từ phần mềm kế toán (DM12)
