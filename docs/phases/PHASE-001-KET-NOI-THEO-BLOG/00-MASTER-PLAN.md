@@ -1,6 +1,6 @@
 # PHASE-001 (bridge) · 00 — Master plan
 
-> ⛔ **21/11 04:40 PM — open-ketoan bắt buộc, bỏ chế độ standalone (D001-15, [open-pos-backend 26](https://github.com/hoanganh8389/open-pos-backend/blob/docs/phase-001-danh-muc-theo-site/docs/phases/PHASE-001-DANH-MUC-THEO-SITE-DONG-BO-KETOAN/26-QUYET-DINH-OPEN-KETOAN-BAT-BUOC.md)).** Repo bạn đổi tên: **open-pos** (trước `tgs_pos`), **open-pos-backend** (trước `tgs_shop_management`). Bridge thành plugin **bắt buộc**; `tgs_okt_connected()` từ nay nghĩa là "blog sẵn sàng bán". **Không gỡ** `build_import` / `tools/danh-muc-hang.php nap` ở B001-C7 cho tới khi xong lần chuyển 92 blog lên open-ketoan (26 §4).
+> ⛔ **21/11 04:40 PM — open-ketoan bắt buộc, bỏ chế độ standalone (D001-15, [open-pos-backend 26](https://github.com/hoanganh8389/open-pos-backend/blob/docs/phase-001-danh-muc-theo-site/docs/phases/PHASE-001-DANH-MUC-THEO-SITE-DONG-BO-KETOAN/26-QUYET-DINH-OPEN-KETOAN-BAT-BUOC.md)).** Hai repo bạn đã đổi tên: **open-pos** (trước `tgs_pos`), **open-pos-backend** (trước `tgs_shop_management`). Bridge thành plugin **bắt buộc**; `tgs_okt_connected()` từ nay nghĩa là "blog sẵn sàng bán". **Không gỡ** `build_import` / `tools/danh-muc-hang.php nap` ở B001-C7 cho tới khi xong lần chuyển 92 blog lên open-ketoan (26 §4).
 
 <!-- [2026-11-21 02:20 PM Johnny Chu - Chu Hoàng Anh] PHASE-001 (bridge) W0 — từ khảo sát máy 21/11 (evidence/census-2026-11-21-bridge.md) và docs/CAU-HINH-KET-NOI.md. -->
 
