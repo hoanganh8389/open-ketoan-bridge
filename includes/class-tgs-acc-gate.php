@@ -216,7 +216,8 @@ class TGS_Acc_Gate
         foreach ($built['docs'] as $doc) {
             $h = TGS_Acc_Pusher::hash($doc);
             $prev = $log[$doc['docKey']] ?? null;
-            if ($prev && $prev['content_hash'] === $h && $prev['status'] === 'posted') {
+            // [2026-11-21 08:45 PM Johnny Chu - Chu Hoàng Anh] S002-9 — 'pending' / 'remote_error' cũng là kế toán đã có đúng nội dung này.
+            if ($prev && $prev['content_hash'] === $h && TGS_Acc_Push_Log::is_delivered($prev['status'])) {
                 continue; // kế toán đã có đúng nội dung này
             }
             $doc['version'] = max(1, $prev ? ((int) $prev['version'] + ($prev['content_hash'] === $h ? 0 : 1)) : 1);
@@ -249,8 +250,10 @@ class TGS_Acc_Gate
         $t = TGS_Acc_Push_Log::table();
         foreach ((array) ($body['received'] ?? []) as $r) {
             $n = $wpdb->query($wpdb->prepare(
-                "UPDATE {$t} SET status = 'posted', message = %s, pushed_at = %s WHERE doc_key = %s AND version = %d AND status IN (%s, 'error')",
-                ($r['status'] ?? '') === 'unchanged' ? 'ERP đã có phiên bản này' : 'ERP đã nhận (chờ định khoản)', current_time('mysql'),
+                // [2026-11-21 08:45 PM Johnny Chu - Chu Hoàng Anh] S002-9 — báo nhận = 'pending' (chờ định khoản), trừ khi kế toán báo đã ghi sổ; kéo trạng thái chuyển tiếp.
+                "UPDATE {$t} SET status = %s, message = %s, pushed_at = %s WHERE doc_key = %s AND version = %d AND status IN (%s, 'error')",
+                ($r['status'] ?? '') === 'posted' ? 'posted' : 'pending',
+                ($r['status'] ?? '') === 'unchanged' ? 'ERP đã có phiên bản này' : (($r['status'] ?? '') === 'posted' ? 'ERP đã nhận và ghi sổ' : 'ERP đã nhận (chờ định khoản)'), current_time('mysql'),
                 (string) ($r['docKey'] ?? ''), (int) ($r['version'] ?? 0), self::STATUS_GATE
             ));
             $done += (int) $n;

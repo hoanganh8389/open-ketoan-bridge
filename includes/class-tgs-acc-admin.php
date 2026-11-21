@@ -198,7 +198,7 @@ class TGS_Acc_Admin
         foreach (TGS_Acc_Push_Log::stats() as $r) {
             $b = (int) $r['blog_id'];
             if (!isset($stats[$b])) {
-                $stats[$b] = ['posted' => 0, 'error' => 0, 'cancelled' => 0, 'last_at' => '', 'last_doc' => ''];
+                $stats[$b] = ['posted' => 0, 'pending' => 0, 'remote_error' => 0, 'error' => 0, 'cancelled' => 0, 'last_at' => '', 'last_doc' => '']; // [2026-11-21 08:45 PM Johnny Chu - Chu Hoàng Anh] S002-9 — đếm thêm pending, remote_error
             }
             $stats[$b][$r['status']] = (int) $r['n'];
             $stats[$b]['last_at'] = max($stats[$b]['last_at'], (string) $r['last_at']);

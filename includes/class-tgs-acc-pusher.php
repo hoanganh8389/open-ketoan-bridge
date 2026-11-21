@@ -382,7 +382,8 @@ class TGS_Acc_Pusher
             $h = self::hash($doc);
             $doc = self::decorate($doc);
             $prev = $log[$doc['docKey']] ?? null;
-            if ($prev && $prev['content_hash'] === $h && $prev['status'] === 'posted' && empty($opts['force'])) {
+            // [2026-11-21 08:45 PM Johnny Chu - Chu Hoàng Anh] S002-9 — đã ghi sổ / đang chờ định khoản / định khoản lỗi ở kế toán: không gửi lại cùng nội dung.
+            if ($prev && $prev['content_hash'] === $h && TGS_Acc_Push_Log::is_delivered($prev['status']) && empty($opts['force'])) {
                 $summary['skipped']++;
                 continue;
             }
@@ -429,11 +430,12 @@ class TGS_Acc_Pusher
                 }
                 $status = (string) ($r['status'] ?? 'error');
                 $msg = (string) ($r['error']['message'] ?? '');
-                // posted (tự định khoản), pending (vào cổng chờ), unchanged: bên kế toán đã có đúng nội dung này.
-                $log_status = in_array($status, ['posted', 'pending', 'unchanged'], true) ? 'posted' : 'error';
-                $note = $status === 'pending' ? 'ERP đã nhận (vào cổng chờ định khoản)' : ($status === 'posted' ? 'ERP đã nhận và tự định khoản' : $msg);
+                // [2026-11-21 08:45 PM Johnny Chu - Chu Hoàng Anh] S002-9 — 'pending' của kế toán GIỮ là 'pending' (trước đây ghi thành 'posted'); 'unchanged' cũng ghi 'pending' để lần kéo trạng thái (refresh_status) xác định đúng.
+                // posted: đã tự định khoản · pending: vào cổng chờ định khoản · unchanged: kế toán đã có đúng phiên bản này (chưa biết đã ghi sổ chưa).
+                $log_status = $status === 'posted' ? 'posted' : (in_array($status, ['pending', 'unchanged'], true) ? 'pending' : 'error');
+                $note = $status === 'pending' ? 'ERP đã nhận (vào cổng chờ định khoản)' : ($status === 'posted' ? 'ERP đã nhận và tự định khoản' : ($status === 'unchanged' ? 'ERP đã có phiên bản này — chờ kéo trạng thái' : $msg));
                 // Lỗi thì không lưu mã băm → lần sau gửi lại.
-                TGS_Acc_Push_Log::save($blog_id, $meta[$key]['doc'], $meta[$key]['version'], $log_status === 'posted' ? $meta[$key]['hash'] : '', $log_status, $note);
+                TGS_Acc_Push_Log::save($blog_id, $meta[$key]['doc'], $meta[$key]['version'], $log_status === 'error' ? '' : $meta[$key]['hash'], $log_status, $note);
                 $summary[$log_status === 'error' ? 'error' : $status]++;
                 if ($log_status === 'error') {
                     $summary['errors'][] = $meta[$key]['doc']['docNo'] . ': ' . $msg;
@@ -537,6 +539,57 @@ class TGS_Acc_Pusher
         $known[$key] = 1;
         update_site_option($cache, $known);
         return '';
+    }
+
+
+    // [2026-11-21 08:45 PM Johnny Chu - Chu Hoàng Anh] S002-10 — kéo trạng thái chứng từ đang chờ từ kế toán về nhật ký gửi (ADR-OKT-1 I-6: biết được đơn đã vào sổ chưa).
+    /**
+     * Hỏi kế toán trạng thái các chứng từ 'pending' của blog (GET /api/v1/documents?search=<docKey>, khoá cần documents:read
+     * — có sẵn trong documents:write) rồi đổi nhật ký gửi:
+     *   posted (postedVersion ≥ phiên bản đã gửi) → 'posted' · error → 'remote_error' (kèm lời kế toán) · cancelled → 'cancelled'
+     *   pending → giữ · không tìm thấy → giữ (ghi vào 'missing').
+     * Chỉ đổi dòng đúng phiên bản đang chờ, không đè phiên bản mới hơn vừa gửi.
+     * @return array{checked:int, posted:int, remote_error:int, cancelled:int, still:int, missing:int, errors:string[]}
+     */
+    public static function refresh_status($blog_id, $client, $limit = 50)
+    {
+        $out = ['checked' => 0, 'posted' => 0, 'remote_error' => 0, 'cancelled' => 0, 'still' => 0, 'missing' => 0, 'errors' => []];
+        foreach (TGS_Acc_Push_Log::pending_rows((int) $blog_id, $limit) as $row) {
+            $key = (string) $row['doc_key'];
+            $res = $client->get('/api/v1/documents', ['search' => $key, 'pageSize' => 5]);
+            if (is_wp_error($res)) {
+                $out['errors'][] = "{$key}: " . $res->get_error_message();
+                continue;
+            }
+            $out['checked']++;
+            $doc = null;
+            foreach ((array) ($res['data'] ?? []) as $d) {
+                if ((string) ($d['docKey'] ?? '') === $key) {
+                    $doc = $d;
+                    break;
+                }
+            }
+            if (!$doc) {
+                $out['missing']++;
+                continue;
+            }
+            $status = (string) ($doc['status'] ?? '');
+            $mine = (int) $row['version'];
+            if ($status === 'posted' && (int) ($doc['postedVersion'] ?? $doc['version'] ?? 0) >= $mine) {
+                TGS_Acc_Push_Log::set_status($key, $mine, 'posted', 'Kế toán đã ghi sổ');
+                $out['posted']++;
+            } elseif ($status === 'error') {
+                $msg = trim((string) ($doc['errorMessage'] ?? '')) ?: 'Kế toán định khoản lỗi';
+                TGS_Acc_Push_Log::set_status($key, $mine, 'remote_error', 'Kế toán: ' . $msg);
+                $out['remote_error']++;
+            } elseif ($status === 'cancelled') {
+                TGS_Acc_Push_Log::set_status($key, $mine, 'cancelled', 'Kế toán đã huỷ chứng từ');
+                $out['cancelled']++;
+            } else {
+                $out['still']++;
+            }
+        }
+        return $out;
     }
 
 }

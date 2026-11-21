@@ -44,6 +44,8 @@ class TGS_Acc_Events
     const RETRY_DAYS = 7;
     const RETRY_MAX = 30;
     const CRON_HOOK = 'tgs_acc_events_retry';
+    // [2026-11-21 08:45 PM Johnny Chu - Chu Hoàng Anh] S002-10 — cron kéo trạng thái chứng từ chờ định khoản (5 phút, site chính, lặp theo blog).
+    const STATUS_HOOK = 'tgs_acc_status_pull';
 
     /** Hàng đợi của request: "blog|kind" => [ref => op]. */
     private static $queue = [];
@@ -62,6 +64,7 @@ class TGS_Acc_Events
         add_action('shutdown', [__CLASS__, 'flush'], 9999);
         add_filter('cron_schedules', [__CLASS__, 'schedules']);
         add_action(self::CRON_HOOK, [__CLASS__, 'retry']);
+        add_action(self::STATUS_HOOK, [__CLASS__, 'pull_status']);
         add_action('init', [__CLASS__, 'schedule']);
     }
 
@@ -92,12 +95,18 @@ class TGS_Acc_Events
     public static function schedules($s)
     {
         $s['tgs_acc_minute'] = ['interval' => 60, 'display' => 'Mỗi phút (gửi lại sự kiện kế toán)'];
+        if (!isset($s['tgs_acc_5min'])) {
+            $s['tgs_acc_5min'] = ['interval' => 300, 'display' => 'Mỗi 5 phút (kế toán)'];
+        }
         return $s;
     }
 
     /** Cron gửi lại chạy ở site tổng. */
     public static function schedule()
     {
+        if (is_main_site() && !wp_next_scheduled(self::STATUS_HOOK)) {
+            wp_schedule_event(time() + 120, 'tgs_acc_5min', self::STATUS_HOOK);
+        }
         if (is_main_site() && !wp_next_scheduled(self::CRON_HOOK)) {
             wp_schedule_event(time() + 60, 'tgs_acc_minute', self::CRON_HOOK);
         }
@@ -455,7 +464,8 @@ class TGS_Acc_Events
                 $docs = array_values(array_filter($built['docs'], ['TGS_Acc_Gate', 'for_tax_book']));
                 $gone = TGS_Acc_Pusher::gone_keys($blog_id, $built['want'], $built['want_ct'], $docs, $built['want_gt'] ?? []);
             } else {
-                $client = new TGS_Acc_Api_Client();
+                // [2026-11-21 08:45 PM Johnny Chu - Chu Hoàng Anh] S002-12 — client THEO BLOG có phiếu: cron gửi lại chạy ở site chính không còn dùng khoá của site chính (sai tenant).
+                $client = TGS_Acc_Api_Client::for_blog((int) $blog_id);
                 $docs = $built['docs'];
                 $gone = $built['gone'];
             }
@@ -576,4 +586,30 @@ class TGS_Acc_Events
         $waiting = array_values(array_filter(self::retry_state(), function ($r) { return empty($r['closed']); }));
         return ['date' => $date, 'events' => $events, 'waiting' => $waiting, 'enabled' => self::enabled(), 'tax' => TGS_Acc_Config::tax_ready(), 'file' => str_replace(ABSPATH, '', self::file($date))];
     }
+
+    // [2026-11-21 08:45 PM Johnny Chu - Chu Hoàng Anh] S002-10 — cron: mọi blog còn chứng từ 'pending' → hỏi kế toán bằng client của chính blog đó.
+    /** Kéo trạng thái chứng từ chờ định khoản cho mọi blog (cron 5 phút ở site chính). @return array blog => tổng kết */
+    public static function pull_status()
+    {
+        $lock = (int) get_site_option('tgs_acc_status_pull_lock', 0);
+        if ($lock && time() - $lock < 240) {
+            return [];
+        }
+        update_site_option('tgs_acc_status_pull_lock', time());
+        $out = [];
+        try {
+            TGS_Acc_Push_Log::use_consumer('');
+            foreach (TGS_Acc_Push_Log::blogs_with_pending() as $blog_id) {
+                $client = TGS_Acc_Api_Client::for_blog($blog_id);
+                if (!$client->ready()) {
+                    continue;
+                }
+                $out[$blog_id] = TGS_Acc_Pusher::refresh_status($blog_id, $client);
+            }
+        } finally {
+            delete_site_option('tgs_acc_status_pull_lock');
+        }
+        return $out;
+    }
+
 }

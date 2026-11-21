@@ -298,4 +298,30 @@ class TGS_Acc_Api_Client
         }
         return $json;
     }
+
+    // [2026-11-21 08:45 PM Johnny Chu - Chu Hoàng Anh] S002-12 — client theo blog cho cron / gửi lại: chạy ở site chính vẫn dùng đúng khoá + URL của blog có phiếu (ADR-OKT-1 I-1).
+    /**
+     * Client cho MỘT blog: URL = TGS_Acc_Config::url_for($blog), khoá = khoá riêng của blog (key_for). Blog chưa có khoá
+     * riêng thì dùng khoá chung cũ của mạng (key_legacy) — y như trước khi có khoá theo blog, để shop đang chạy không vỡ.
+     * $allow_legacy = false: chỉ khoá riêng (không có thì client chưa sẵn sàng — ready() sai).
+     */
+    public static function for_blog($blog_id, $allow_legacy = true)
+    {
+        $blog_id = (int) $blog_id;
+        $key = TGS_Acc_Config::key_for($blog_id);
+        if ($key === '' && $allow_legacy) {
+            $key = TGS_Acc_Config::key_legacy();
+        }
+        $url = TGS_Acc_Config::url_for($blog_id);
+        // Khoá rỗng thì truyền một khoảng trắng: hàm dựng coi '' là "lấy theo cấu hình blog hiện tại" (đúng điều cần tránh ở cron).
+        $c = new self($url !== '' ? $url : ' ', $key !== '' ? $key : ' ');
+        if ($key === '') {
+            $c->key = '';
+        }
+        if ($url === '') {
+            $c->base = '';
+        }
+        return $c;
+    }
+
 }
