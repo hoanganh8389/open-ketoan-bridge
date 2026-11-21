@@ -180,8 +180,30 @@ class TGS_Acc_Source
      * Mã chi nhánh (danh mục Chi nhánh) website $blog_id đang nối ở Cấu hình phân cấp multisite: sites[blog].htsoft_srid →
      * bảng chi nhánh dùng chung (TEN). '' = chưa nối. Đọc một lần mỗi request.
      */
+    // [2026-11-21 08:30 PM Johnny Chu - Chu Hoàng Anh] S002-5 — mã chi nhánh khai tay theo blog thắng mọi cách dò (một blog = một tenant: chi nhánh của tenant, thường là CN01).
+    /**
+     * Mã chi nhánh bên kế toán do admin KHAI cho blog: hằng TGS_ACC_BRANCH_CODES[blog] → option của blog
+     * tgs_acc_branch_code → filter tgs_acc_branch_code. '' = chưa khai (dò như cũ). Tối đa 32 ký tự (khuôn branchCode).
+     */
+    public static function branch_override($blog_id)
+    {
+        $blog_id = (int) $blog_id;
+        $code = '';
+        if (defined('TGS_ACC_BRANCH_CODES') && is_array(TGS_ACC_BRANCH_CODES) && isset(TGS_ACC_BRANCH_CODES[$blog_id])) {
+            $code = (string) TGS_ACC_BRANCH_CODES[$blog_id];
+        } elseif ($blog_id > 0 && function_exists('get_blog_option')) {
+            $code = (string) get_blog_option($blog_id, 'tgs_acc_branch_code', '');
+        }
+        $code = trim((string) apply_filters('tgs_acc_branch_code', $code, $blog_id));
+        return strlen($code) > 32 ? '' : $code;
+    }
+
     public static function branch_of_blog($blog_id)
     {
+        $own = self::branch_override($blog_id);
+        if ($own !== '') {
+            return $own;
+        }
         static $map = null;
         if ($map === null) {
             global $wpdb;

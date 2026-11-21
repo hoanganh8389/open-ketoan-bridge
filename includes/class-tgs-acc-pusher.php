@@ -406,20 +406,9 @@ class TGS_Acc_Pusher
         // gửi / nhận của chính phiếu (có thể không phải shop này) nên không dùng để suy mã shop.
         $own = array_values(array_filter($docs, function ($d) { return $d['docType'] !== 'cash_transfer'; }));
         if ($own) {
-            $code = (string) $own[0]['branchCode'];
-            // Mã chi nhánh đã bảo đảm có bên kế toán thì nhớ lại (site option) — gửi tức thời không phải tải danh sách
-            // chi nhánh mỗi lần; chỉ hỏi ERP khi gặp mã mới.
-            $cache = 'tgs_acc_known_branches' . (TGS_Acc_Push_Log::consumer() === 'tax' ? '_tax' : '');
-            $known = (array) get_site_option($cache, []);
-            if (empty($known[$code])) {
-                $name = trim((string) get_blog_option((int) $blog_id, 'tgs_shop_name', '')) ?: (string) get_blog_option((int) $blog_id, 'blogname', '');
-                $ok = $client->ensure_branch($code, $name, 'blog:' . (int) $blog_id);
-                if (is_wp_error($ok)) {
-                    $summary['errors'][] = "Không tạo được chi nhánh {$code} bên kế toán: " . $ok->get_error_message();
-                } else {
-                    $known[$code] = 1;
-                    update_site_option($cache, $known);
-                }
+            $err = self::check_branch($client, (int) $blog_id, (string) $own[0]['branchCode']);
+            if ($err !== '') {
+                $summary['errors'][] = $err;
             }
         }
 
@@ -501,4 +490,53 @@ class TGS_Acc_Pusher
         $summary['errors'] = array_merge($summary['errors'], $c['errors']);
         return $summary;
     }
+
+    // [2026-11-21 08:30 PM Johnny Chu - Chu Hoàng Anh] S002-5 — mã chi nhánh khai tay (TGS_Acc_Source::branch_override) chỉ KIỂM có ở tenant, không tự tạo chi nhánh trống; mã dò như cũ thì giữ ensure_branch.
+    /**
+     * Bảo đảm chi nhánh $code có bên kế toán trước khi gửi. Trả '' khi được, không thì câu báo lỗi.
+     *   - Mã do admin khai cho blog (TGS_Acc_Source::branch_override): chỉ kiểm có trong GET /api/v1/branches — không có
+     *     thì báo lỗi, KHÔNG tạo (tạo sẽ ra chi nhánh trống, không kho).
+     *   - Mã dò kiểu cũ (phân cấp / mã site): như trước — chưa có thì ensure_branch tạo.
+     * Đã bảo đảm thì nhớ ở site option (theo blog với mã khai tay, vì mỗi blog một tenant) — không hỏi lại mỗi lần gửi.
+     */
+    public static function check_branch($client, $blog_id, $code)
+    {
+        $code = (string) $code;
+        if ($code === '') {
+            return 'Chưa có mã chi nhánh của shop (khai option tgs_acc_branch_code của blog, ví dụ CN01)';
+        }
+        $explicit = TGS_Acc_Source::branch_override((int) $blog_id) !== '';
+        $cache = 'tgs_acc_known_branches' . (TGS_Acc_Push_Log::consumer() === 'tax' ? '_tax' : '');
+        $key = $explicit ? (int) $blog_id . ':' . $code : $code;
+        $known = (array) get_site_option($cache, []);
+        if (!empty($known[$key])) {
+            return '';
+        }
+        if ($explicit) {
+            $list = $client->get('/api/v1/branches');
+            if (is_wp_error($list)) {
+                return "Không đọc được danh mục chi nhánh bên kế toán: " . $list->get_error_message();
+            }
+            $found = false;
+            foreach ((array) ($list['data'] ?? []) as $b) {
+                if (strcasecmp((string) ($b['code'] ?? ''), $code) === 0) {
+                    $found = true;
+                    break;
+                }
+            }
+            if (!$found) {
+                return "Chi nhánh {$code} (khai ở tgs_acc_branch_code của blog {$blog_id}) chưa có ở tenant kế toán — tạo ở kế toán hoặc sửa mã";
+            }
+        } else {
+            $name = trim((string) get_blog_option((int) $blog_id, 'tgs_shop_name', '')) ?: (string) get_blog_option((int) $blog_id, 'blogname', '');
+            $ok = $client->ensure_branch($code, $name, 'blog:' . (int) $blog_id);
+            if (is_wp_error($ok)) {
+                return "Không tạo được chi nhánh {$code} bên kế toán: " . $ok->get_error_message();
+            }
+        }
+        $known[$key] = 1;
+        update_site_option($cache, $known);
+        return '';
+    }
+
 }
