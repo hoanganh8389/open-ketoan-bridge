@@ -135,7 +135,13 @@ class TGS_Acc_Gate
      * chọn, chỉ quét đúng các shop đó), hoặc blogs (id), không có thì mọi site trừ site tổng.
      * Mã khớp mã site; mã kế toán có đuôi chữ của danh mục cũ (08016Plus) khớp mã site 08016; hoặc khớp tên site.
      */
+    // [2026-11-21 09:00 PM Johnny Chu - Chu Hoàng Anh] S002-13 — shop đang tạm dừng kết nối không trả ra cổng chờ.
     private static function blogs(WP_REST_Request $req)
+    {
+        return array_values(array_filter(self::blogs_all($req), function ($id) { return !TGS_Acc_Events::paused((int) $id); }));
+    }
+
+    private static function blogs_all(WP_REST_Request $req)
     {
         $shops = array_values(array_filter(array_map('trim', explode(',', (string) $req->get_param('shops')))));
         if ($shops && class_exists('TGS_BCTK_Sites')) {
