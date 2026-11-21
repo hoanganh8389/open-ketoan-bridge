@@ -63,6 +63,27 @@
             }).join('') + '</tbody>';
     }
 
+    // [2026-11-21 10:15 PM Johnny Chu - Chu Hoàng Anh] S002-13 — cột Kết nối: tạm dừng / bỏ tạm dừng theo shop, số nhóm đang chờ gửi.
+    function connCell(blog, c) {
+        c = c || {};
+        var q = c.queue ? ' <span class="tacc-muted">' + num(c.queue) + ' nhóm chờ</span>' : '';
+        return c.paused
+            ? '<span class="tacc-pill bad">Tạm dừng</span> <span class="tacc-muted">từ ' + esc(fmtT(c.since)) + '</span>' + q + ' <a href="#" class="taccPause" data-op="resume" data-blog="' + blog + '">Bỏ tạm dừng</a>'
+            : '<span class="tacc-pill">Đang nối</span>' + q + ' <a href="#" class="taccPause" data-op="pause" data-blog="' + blog + '">Tạm dừng</a>';
+    }
+    app.addEventListener('click', function (ev) {
+        var a = ev.target.closest('.taccPause');
+        if (!a) { return; }
+        ev.preventDefault();
+        var blog = a.dataset.blog, op = a.dataset.op;
+        var msg = op === 'pause'
+            ? 'Tạm dừng kết nối kế toán của shop ' + shopLabel(blog) + '?\n\nShop vẫn bán bình thường, chứng từ được giữ lại (tối đa 7 ngày) và gửi bù khi bỏ tạm dừng.'
+            : 'Bỏ tạm dừng kết nối của shop ' + shopLabel(blog) + '?\n\nChứng từ đang chờ sẽ được gửi bù trong vài phút.';
+        if (!confirm(msg)) { return; }
+        var cell = a.closest('.taccConn');
+        R.post('tgs_acc_pause', { blog: blog, op: op }).then(function (d) { cell.innerHTML = connCell(blog, d.conn); })
+            .catch(function (e) { alert(e.message); });
+    });
     function overview() {
         R.post('tgs_acc_overview').then(function (d) {
             var t = { posted: 0, error: 0, cancelled: 0 };
@@ -82,8 +103,9 @@
                 return '<tr><td><b>' + esc(s.code) + '</b></td><td>' + esc(s.name) + '</td><td class="r">' + num(st.posted) + '</td>'
                     + '<td class="r">' + (st.error ? '<a href="#" class="taccErr" data-blog="' + s.blog + '"><span class="tacc-pill bad">' + num(st.error) + '</span></a>' : '0') + '</td>'
                     + '<td class="r">' + num(st.cancelled) + '</td><td>' + fmtD(st.last_doc) + '</td><td>' + fmtT(st.last_at) + '</td>'
+                    + '<td class="taccConn" data-blog="' + s.blog + '">' + connCell(s.blog, (d.conn || {})[s.blog]) + '</td>'
                     + '<td><a href="#" class="taccPushShop" data-blog="' + s.blog + '">Gửi…</a></td></tr>';
-            }).join('') || '<tr><td colspan="8" class="tacc-muted">Chưa có shop nào trong danh sách áp dụng thuế.</td></tr>';
+            }).join('') || '<tr><td colspan="9" class="tacc-muted">Chưa có shop nào trong danh sách áp dụng thuế hoặc bật nguồn sổ POS.</td></tr>';
             $('#taccRecentRuns').innerHTML = runRows(d.runs, true);
         }).catch(function (e) { $('#taccCards').innerHTML = '<div class="tacc-kpi bad"><b>Lỗi</b>' + esc(e.message) + '</div>'; });
     }

@@ -53,8 +53,8 @@ $tacc_status = ['live' => ['Đang chạy', 'ok'], 'planned' => ['Dự kiến', '
         <div class="tacc-card">
             <div class="tacc-card__title">Theo shop <span class="tacc-muted">— số chứng từ trong nhật ký gửi</span></div>
             <div class="tacc-tablewrap"><table class="tacc-table" id="taccShopTable">
-                <thead><tr><th>Shop</th><th>Tên</th><th class="r">Đã vào sổ</th><th class="r">Lỗi</th><th class="r">Đã huỷ</th><th>Chứng từ mới nhất</th><th>Gửi lần cuối</th><th></th></tr></thead>
-                <tbody><tr><td colspan="8" class="tacc-muted">Đang tải…</td></tr></tbody>
+                <thead><tr><th>Shop</th><th>Tên</th><th class="r">Đã vào sổ</th><th class="r">Lỗi</th><th class="r">Đã huỷ</th><th>Chứng từ mới nhất</th><th>Gửi lần cuối</th><th>Kết nối</th><th></th></tr></thead>
+                <tbody><tr><td colspan="9" class="tacc-muted">Đang tải…</td></tr></tbody>
             </table></div>
         </div>
         <div class="tacc-card">
