@@ -27,8 +27,12 @@ class TGS_Acc_Admin
         add_filter('tgs_shop_dashboard_routes', [__CLASS__, 'register_route']);
         add_filter('tgs_shop_workflow_nav', [__CLASS__, 'add_nav_item'], 45, 2);
         add_action('admin_enqueue_scripts', [__CLASS__, 'enqueue'], 30);
-        foreach (['overview', 'push', 'log', 'runs', 'sample', 'ping', 'save', 'calls', 'lists', 'events', 'events_retry'] as $a) {
+        foreach (['overview', 'push', 'log', 'runs', 'sample', 'ping', 'save', 'calls', 'lists', 'events', 'events_retry', 'pause'] as $a) {
             add_action('wp_ajax_tgs_acc_' . $a, [__CLASS__, 'ajax_' . $a]);
+        }
+        // [2026-11-21 10:15 PM Johnny Chu - Chu Hoàng Anh] S002-13 — blog đổi nguồn phiếu thì làm mới danh sách blog nguồn sổ POS.
+        foreach (['update_option_', 'add_option_', 'delete_option_'] as $h) {
+            add_action($h . 'tgs_acc_sale_source', [__CLASS__, 'forget_pos_blogs']);
         }
     }
 
@@ -151,6 +155,8 @@ class TGS_Acc_Admin
     {
         global $wpdb;
         $ids = class_exists('TGS_BCTK_Vat_Shops') ? array_map('intval', (array) TGS_BCTK_Vat_Shops::active_blog_ids()) : [];
+        // [2026-11-21 10:15 PM Johnny Chu - Chu Hoàng Anh] S002-13 — thêm blog bật nguồn sổ POS (không có trong danh sách thuế của tgs-bc-tk).
+        $ids = array_values(array_unique(array_merge($ids, self::pos_source_blogs())));
         $ids = (array) apply_filters('tgs_acc_bridge_blog_ids', $ids);
         $has_code = (bool) $wpdb->get_var("SHOW COLUMNS FROM {$wpdb->blogs} LIKE 'tgs_site_code'");
         $out = [];
@@ -163,6 +169,33 @@ class TGS_Acc_Admin
             $out[] = ['blog' => (int) $id, 'code' => $code !== '' ? $code : '#' . $id, 'name' => $name];
         }
         return $out;
+    }
+
+    const POS_BLOGS_CACHE = 'tgs_acc_pos_source_blogs';
+
+    /** Blog bật nguồn phiếu = sổ POS (option tgs_acc_sale_source = pos). Đệm 10 phút ở tầng mạng. @return int[] */
+    public static function pos_source_blogs()
+    {
+        if (!is_multisite()) {
+            return [];
+        }
+        $ids = get_site_transient(self::POS_BLOGS_CACHE);
+        if (is_array($ids)) {
+            return array_map('intval', $ids);
+        }
+        $ids = [];
+        foreach (get_sites(['fields' => 'ids', 'number' => 0, 'deleted' => 0, 'archived' => 0, 'spam' => 0]) as $id) {
+            if (TGS_Acc_Source::sale_source((int) $id) === 'pos') {
+                $ids[] = (int) $id;
+            }
+        }
+        set_site_transient(self::POS_BLOGS_CACHE, $ids, 10 * MINUTE_IN_SECONDS);
+        return $ids;
+    }
+
+    public static function forget_pos_blogs()
+    {
+        delete_site_transient(self::POS_BLOGS_CACHE);
     }
 
     private static function allowed_blog($blog_id)
@@ -204,11 +237,18 @@ class TGS_Acc_Admin
             $stats[$b]['last_at'] = max($stats[$b]['last_at'], (string) $r['last_at']);
             $stats[$b]['last_doc'] = max($stats[$b]['last_doc'], (string) $r['last_doc']);
         }
+        // [2026-11-21 10:15 PM Johnny Chu - Chu Hoàng Anh] S002-13 — trạng thái kết nối từng shop: tạm dừng từ lúc nào, bao nhiêu nhóm đang chờ gửi.
+        $shops = self::shops();
+        $conn = [];
+        foreach ($shops as $s) {
+            $conn[$s['blog']] = self::conn_of($s['blog']);
+        }
         wp_send_json_success([
             'config'   => TGS_Acc_Config::for_display(),
             'source'   => TGS_Acc_Source::ready(),
-            'shops'    => self::shops(),
+            'shops'    => $shops,
             'stats'    => $stats,
+            'conn'     => $conn,
             'runs'     => self::decorate_runs(TGS_Acc_Push_Log::runs(0, 15)),
         ]);
     }
@@ -335,6 +375,35 @@ class TGS_Acc_Admin
     }
 
     /** Nút "Gửi lại các nhóm lỗi ngay" (bỏ qua giãn cách). */
+    /** @return array{paused: bool, since: string, queue: int, oldest: string} */
+    private static function conn_of($blog_id)
+    {
+        $q = TGS_Acc_Events::queue_of($blog_id);
+        return ['paused' => (bool) $q['paused'], 'since' => TGS_Acc_Events::paused_since($blog_id), 'queue' => (int) $q['groups'], 'oldest' => (string) $q['oldest']];
+    }
+
+    /**
+     * Tạm dừng / bỏ tạm dừng kết nối của MỘT shop (S002-13, R-OKT-CONN-12). Tạm dừng: shop vẫn bán và ghi sự kiện, không gửi,
+     * không thử lại, không hỏi trạng thái. Bỏ tạm dừng: cron gửi lại (mỗi phút) gửi bù hàng chờ, không trùng.
+     */
+    public static function ajax_pause()
+    {
+        self::guard();
+        $blog = (int) ($_POST['blog'] ?? 0);
+        if (!self::allowed_blog($blog)) {
+            wp_send_json_error(['message' => 'Shop không thuộc danh sách của Cổng kế toán.']);
+        }
+        $op = sanitize_key((string) ($_POST['op'] ?? ''));
+        if ($op === 'pause') {
+            TGS_Acc_Events::pause($blog);
+        } elseif ($op === 'resume') {
+            TGS_Acc_Events::resume($blog);
+        } else {
+            wp_send_json_error(['message' => 'Thao tác không hợp lệ.']);
+        }
+        wp_send_json_success(['blog' => $blog, 'conn' => self::conn_of($blog)]);
+    }
+
     public static function ajax_events_retry()
     {
         self::guard();
