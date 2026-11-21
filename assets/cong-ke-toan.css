@@ -1,0 +1,87 @@
+/* Cổng kế toán — mọi luật gói trong .tacc / #taccVat để không ảnh hưởng màn khác. */
+.tacc, #taccVat { --c-pri: #0f766e; --c-pri-soft: #ccfbf1; --c-line: #e2e8f0; --c-muted: #64748b; --c-bad: #b91c1c; font-size: 13px; color: #0f172a; }
+.tacc { padding: 16px; max-width: 1400px; }
+.tacc h2 { font-size: 18px; margin: 0 0 4px; }
+.tacc h2 small { font-size: 11px; color: var(--c-muted); font-weight: 500; }
+.tacc-h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--c-muted); margin: 18px 0 6px; }
+.tacc-muted { color: var(--c-muted); font-size: 12px; }
+.tacc-head { display: flex; gap: 16px; align-items: flex-start; justify-content: space-between; margin-bottom: 12px; }
+.tacc-head__right { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
+.tacc-tabs { display: flex; gap: 2px; border-bottom: 2px solid var(--c-line); margin-bottom: 12px; flex-wrap: wrap; }
+.tacc-tabs button { border: 0; background: none; padding: 8px 14px; font-size: 13px; font-weight: 600; color: var(--c-muted); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+.tacc-tabs button:hover { color: #0f172a; }
+.tacc-tabs button.on { color: var(--c-pri); border-bottom-color: var(--c-pri); }
+.tacc-card { background: #fff; border: 1px solid var(--c-line); border-radius: 10px; padding: 14px; margin-bottom: 12px; }
+.tacc-card__title { font-weight: 700; margin-bottom: 8px; }
+.tacc-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-bottom: 12px; }
+.tacc-kpi { background: #fff; border: 1px solid var(--c-line); border-radius: 10px; padding: 12px 14px; }
+.tacc-kpi b { display: block; font-size: 20px; margin-top: 2px; }
+.tacc-kpi.bad b { color: var(--c-bad); }
+.tacc-form { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-bottom: 10px; }
+.tacc-form label, .tacc-grid label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: #475569; }
+.tacc-form label.tacc-check { flex-direction: row; align-items: center; gap: 6px; padding-bottom: 6px; }
+.tacc input[type=date], .tacc input[type=text], .tacc input[type=search], .tacc input[type=number], .tacc input[type=password], .tacc input:not([type]), .tacc select,
+#taccVat input[type=date], #taccVat input[type=password] { padding: 5px 8px; border: 1px solid #cbd5e1; border-radius: 7px; font-size: 13px; background: #fff; min-height: 32px; box-sizing: border-box; }
+.tacc-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.tacc-grid small { color: #92400e; }
+.tacc-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 10px 0; }
+.tacc-btn, #taccVat .tacc-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 7px; border: 1px solid var(--c-pri); background: var(--c-pri); color: #fff; font-weight: 600; cursor: pointer; text-decoration: none; font-size: 13px; line-height: 1.4; }
+.tacc-btn:hover { filter: brightness(1.08); color: #fff; }
+.tacc-btn.ghost, #taccVat .tacc-btn.ghost { background: #fff; color: var(--c-pri); }
+.tacc-btn.danger, #taccVat .tacc-btn.danger { background: #fff; color: var(--c-bad); border-color: var(--c-bad); }
+.tacc-btn:disabled { opacity: .5; cursor: not-allowed; }
+.tacc-pill { display: inline-block; padding: 1px 9px; border-radius: 99px; font-size: 11.5px; font-weight: 700; white-space: nowrap; background: #f1f5f9; color: var(--c-muted); }
+.tacc-pill.ok { background: #dcfce7; color: #15803d; }
+.tacc-pill.bad { background: #fee2e2; color: var(--c-bad); }
+.tacc-pill.run { background: #dbeafe; color: #1e40af; }
+.tacc-pill.warn { background: #fef3c7; color: #92400e; }
+.tacc-tablewrap { overflow: auto; max-height: 62vh; border: 1px solid var(--c-line); border-radius: 8px; }
+.tacc-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.tacc-table th { position: sticky; top: 0; background: #f8fafc; box-shadow: 0 1px 0 var(--c-line); padding: 6px 8px; text-align: left; font-size: 12px; color: #475569; white-space: nowrap; z-index: 1; }
+.tacc-table td { padding: 5px 8px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+.tacc-table tr:hover td { background: #f8fafc; }
+.tacc-table .r { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tacc-table tfoot td { font-weight: 700; background: #f8fafc; position: sticky; bottom: 0; }
+.tacc-table .msg { max-width: 420px; color: #475569; white-space: pre-wrap; word-break: break-word; }
+.tacc-fields { margin-top: 8px; }
+.tacc-progress { height: 6px; background: var(--c-line); border-radius: 99px; overflow: hidden; margin: 6px 0 10px; }
+.tacc-progress > div { height: 100%; width: 0; background: var(--c-pri); transition: width .2s; }
+.tacc-shoppick { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 4px; }
+.tacc-shoppick label { display: inline-flex; gap: 5px; align-items: center; border: 1px solid var(--c-line); border-radius: 99px; padding: 3px 10px; cursor: pointer; font-size: 12.5px; }
+.tacc-shoppick label.all { font-weight: 700; }
+.tacc-pager { display: flex; gap: 6px; align-items: center; margin-top: 8px; }
+.tacc-pre { background: #0f172a; color: #e2e8f0; padding: 10px 12px; border-radius: 8px; font-size: 12px; overflow: auto; max-height: 55vh; white-space: pre-wrap; word-break: break-word; margin: 6px 0; }
+.tacc-api { background: #fff; border: 1px solid var(--c-line); border-radius: 10px; margin-bottom: 8px; }
+.tacc-api summary { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 10px 14px; cursor: pointer; list-style: none; }
+.tacc-api summary::-webkit-details-marker { display: none; }
+.tacc-api[open] summary { border-bottom: 1px solid var(--c-line); }
+.tacc-api__body { padding: 10px 14px; }
+.tacc-api dl { display: grid; grid-template-columns: 150px 1fr; gap: 4px 12px; margin: 0; }
+.tacc-api dt { color: var(--c-muted); font-size: 12px; }
+.tacc-api dd { margin: 0; }
+.tacc-notes { margin: 8px 0 0 18px; padding: 0; }
+.tacc-method { font-family: Consolas, monospace; font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 5px; background: #e0e7ff; color: #3730a3; }
+.tacc-method.m-post { background: #dcfce7; color: #166534; }
+.tacc-method.m-get { background: #dbeafe; color: #1e40af; }
+.tacc-path { font-size: 12px; color: #334155; }
+.tacc-scope { margin-left: auto; font-size: 11.5px; color: var(--c-muted); font-family: Consolas, monospace; }
+.tacc-sample { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--c-line); }
+.tacc-ping { display: grid; gap: 6px; margin-top: 8px; }
+.tacc-ping div { display: flex; gap: 8px; align-items: center; }
+/* Ô tích tự vẽ: giao diện chung của trang quản trị làm mất dấu tích của ô mặc định. */
+.tacc input[type=checkbox], #taccVat input[type=checkbox] { -webkit-appearance: none !important; appearance: none !important; width: 17px !important; height: 17px !important; min-width: 17px !important; margin: 0 !important; padding: 0 !important; border: 2px solid #94a3b8 !important; border-radius: 4px !important; background: #fff !important; box-shadow: none !important; cursor: pointer; vertical-align: middle; position: relative; outline: 0; }
+.tacc input[type=checkbox]:checked, #taccVat input[type=checkbox]:checked { background: var(--c-pri) !important; border-color: var(--c-pri) !important; }
+.tacc input[type=checkbox]::before, #taccVat input[type=checkbox]::before { content: none !important; }
+.tacc input[type=checkbox]:checked::after, #taccVat input[type=checkbox]:checked::after { content: "" !important; position: absolute; left: 4px; top: 0; width: 5px; height: 10px; border: solid #fff; border-width: 0 2.5px 2.5px 0; transform: rotate(45deg); }
+.tacc-shoppick label:has(input:checked) { border-color: var(--c-pri); background: #f0fdfa; }
+
+/* Cửa sổ của nút "Đẩy sang Kế toán" ở màn VAT */
+#taccVatBtn { margin-left: 10px; padding: 6px 14px; border: 1px solid #0f766e; border-radius: 6px; background: #f0fdfa; color: #0f766e; font-weight: 600; cursor: pointer; }
+#taccVat { position: fixed; inset: 0; z-index: 100000; }
+#taccVat .tacc-ov { position: absolute; inset: 0; background: rgba(15, 23, 42, .45); }
+#taccVat .tacc-win { position: relative; margin: 4vh auto; width: min(1100px, 95vw); max-height: 92vh; display: flex; flex-direction: column; background: #fff; border-radius: 12px; box-shadow: 0 20px 50px rgba(0, 0, 0, .25); }
+#taccVat .tacc-win__head { padding: 14px 18px; border-bottom: 1px solid var(--c-line); display: flex; align-items: center; gap: 10px; }
+#taccVat .tacc-win__body { padding: 12px 18px; overflow: auto; flex: 1; min-height: 0; }
+#taccVat .tacc-win__foot { padding: 12px 18px; border-top: 1px solid var(--c-line); display: flex; gap: 8px; align-items: center; }
+#taccVat .tacc-x { margin-left: auto; border: 0; background: none; font-size: 22px; cursor: pointer; line-height: 1; }
+#taccVat .tacc-tablewrap { max-height: 46vh; }

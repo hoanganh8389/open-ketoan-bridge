@@ -1,0 +1,10 @@
+# open-ketoan-bridge — không đưa bí mật, nhật ký, dữ liệu chạy vào git
+.env*
+*.log
+*.jsonl
+*.sql
+*.zip
+node_modules/
+vendor/
+.DS_Store
+Thumbs.db
