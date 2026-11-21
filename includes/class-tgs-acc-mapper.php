@@ -108,7 +108,8 @@ class TGS_Acc_Mapper
                 // Định danh bất biến: kế toán khớp theo itemId, mã chỉ để đọc (docs/ma-hang-so-va-bien-the.md).
                 'itemId'          => class_exists('TGS_Item_Variant') ? TGS_Item_Variant::item_id($it['ma_hang'] ?? '') : null,
                 'name'            => (string) ($it['ten'] ?? ''),
-                'unit'            => (string) ($it['dvt'] ?? ''),
+                // [2026-11-21 08:30 PM Johnny Chu - Chu Hoàng Anh] S002-6 — qty theo ĐVT nhỏ nhất thì unit cũng là ĐVT nhỏ nhất (dvt_goc của nguồn sổ POS); kế toán tự thêm mặt hàng lấy unit này. Dòng tgs-bc-tk không có dvt_goc: giữ như cũ.
+                'unit'            => (string) (($it['dvt_goc'] ?? '') !== '' ? $it['dvt_goc'] : ($it['dvt'] ?? '')),
                 // qty = quy về đơn vị nhỏ nhất (tồn kho); unitQty/unitRatio = theo ĐVT bán trên phiếu (lốc, thùng…).
                 'qty'             => abs((float) ($it['sl_dvcb'] ?? 0)),
                 'unitQty'         => abs((float) ($it['sl'] ?? ($it['sl_dvcb'] ?? 0))),
