@@ -100,6 +100,7 @@ class TGS_Acc_Events
     const BREAKER_OPTION = 'tgs_acc_breaker';
     const BREAKER_SECONDS = 120; // lần 1: 2 phút; lặp lại: 4, 8, 15 phút (tối đa)
     const BREAKER_MAX = 900;
+    const REALTIME_TIMEOUT = 5; // giây chờ mỗi lời gọi khi gửi tức thời trong request
     const BREAKER_MSG = 'Cầu dao mở: lần gửi gần nhất không tới được kế toán — xếp hàng, cron thử lại khi cầu dao hết hạn';
 
     /** Trạng thái cầu dao của blog: ['until' => ts, 'fails' => n, 'since' => ts, 'msg' => …] hoặc []. */
@@ -513,8 +514,18 @@ class TGS_Acc_Events
                 }
                 continue;
             }
-            // Dựng MỘT lần, gửi từng nơi nhận (sổ nội bộ, sổ thuế).
+            // Dựng MỘT lần, gửi từng nơi nhận (sổ nội bộ, sổ thuế). Gửi tức thời: chờ tối đa 5 s mỗi lời gọi (cron gửi lại chờ đủ).
+            TGS_Acc_Api_Client::$request_timeout = self::REALTIME_TIMEOUT;
             $built = self::build($g['blog'], $g['ledger'], $g['ct'], $g['gt']);
+            // OKT-CAU-DAO — lúc dựng đã thấy kế toán không tới được (danh mục kho) → không gửi lô nữa, xếp hàng.
+            if (self::breaker_open($g['blog'])) {
+                $until = (int) self::breaker($g['blog'])['until'];
+                foreach (self::targets() as $target) {
+                    self::append($date, [['t' => self::now(), 'rid' => $g['ids'][0] . ($target ? '-' . $target : ''), 'target' => $target, 'blog' => $g['blog'], 'ledger' => $g['ledger'], 'ct' => $g['ct'], 'gt' => $g['gt'], 'n' => 0, 'next' => $until, 'msg' => self::BREAKER_MSG]], 'retry');
+                }
+                TGS_Acc_Api_Client::$request_timeout = 0;
+                continue;
+            }
             foreach (self::targets() as $target) {
                 $r = self::deliver($g['blog'], $built, $target);
                 if ($target === '') {
@@ -525,6 +536,7 @@ class TGS_Acc_Events
                     self::append($date, [['t' => self::now(), 'rid' => $g['ids'][0] . ($target ? '-' . $target : ''), 'target' => $target, 'blog' => $g['blog'], 'ledger' => $g['ledger'], 'ct' => $g['ct'], 'gt' => $g['gt'], 'n' => 1, 'next' => time() + 60, 'msg' => $r['msg']]], 'retry');
                 }
             }
+            TGS_Acc_Api_Client::$request_timeout = 0; // OKT-CAU-DAO — trả thời gian chờ đầy đủ cho phần sau của tiến trình
         }
     }
 

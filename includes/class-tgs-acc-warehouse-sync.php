@@ -50,15 +50,30 @@ class TGS_Acc_Warehouse_Sync
      * Danh mục kho bên kế toán theo chi nhánh (nhớ ở site option, cũ quá 10 phút thì tải lại).
      * Tải lỗi mà còn bản nhớ cũ → dùng bản cũ. @return array|WP_Error [mã chi nhánh => [mã kho => ['name' => …, 'default' => bool]]]
      */
-    public static function branches($fresh = false)
+    public static function branches($fresh = false, $blog_id = 0)
     {
-        $cached = get_site_option(self::MAP, []);
-        if (!$fresh && !empty($cached['branches']) && time() - (int) ($cached['at'] ?? 0) <= self::STALE) {
-            return $cached['branches'];
+        // [2026-11-22 06:30 PM Johnny Chu - Chu Hoàng Anh] OKT-CAU-DAO — đệm THEO KẾT NỐI của blog (URL + khoá: một blog = một tenant, I-1), danh sách
+        // rỗng (tenant chưa có kho) vẫn là đệm hợp lệ, tải hỏng thì nhớ 60 s. Trước đây: một đệm chung cả mạng tải bằng khoá của
+        // ngữ cảnh hiện tại; danh sách rỗng coi như chưa có → MỌI lần gửi gọi /warehouses; kế toán treo → mỗi lần chờ 10 s.
+        $blog_id = (int) $blog_id;
+        $client = $blog_id > 0 ? TGS_Acc_Api_Client::for_blog($blog_id) : new TGS_Acc_Api_Client();
+        $key = $blog_id > 0 ? self::MAP . '_' . $client->identity() : self::MAP;
+        $cached = (array) get_site_option($key, []);
+        $has = array_key_exists('branches', $cached);
+        if (!$fresh && $has && time() - (int) ($cached['at'] ?? 0) <= self::STALE) {
+            return (array) $cached['branches'];
         }
-        $map = self::fetch();
+        if (!$fresh && time() - (int) ($cached['fail_at'] ?? 0) < 60) {
+            return $has ? (array) $cached['branches'] : new WP_Error('tgs_acc_wh_recent_fail', 'Vừa tải danh mục kho không được — thử lại sau 60 s');
+        }
+        $map = self::fetch($client, $key);
         if (is_wp_error($map)) {
-            return !empty($cached['branches']) ? $cached['branches'] : $map;
+            update_site_option($key, ['fail_at' => time()] + $cached);
+            $d = $map->get_error_data();
+            if ($blog_id > 0 && class_exists('TGS_Acc_Events') && (!is_array($d) || empty($d['status']))) {
+                TGS_Acc_Events::trip($blog_id, 'Danh mục kho: ' . $map->get_error_message()); // đường truyền hỏng → mở cầu dao luôn
+            }
+            return $has ? (array) $cached['branches'] : $map;
         }
         return $map;
     }
@@ -66,7 +81,7 @@ class TGS_Acc_Warehouse_Sync
     /** Mã kho mặc định bên kế toán của chi nhánh nối với website ('' nếu chưa có / không tải được). */
     public static function default_code($blog_id)
     {
-        $map = self::branches();
+        $map = self::branches(false, (int) $blog_id);
         if (is_wp_error($map)) {
             return '';
         }
@@ -79,12 +94,13 @@ class TGS_Acc_Warehouse_Sync
     }
 
     /** Tải danh mục kho từ kế toán (chỉ kho đang dùng) và nhớ lại. */
-    private static function fetch()
+    private static function fetch($client = null, $key = self::MAP)
     {
-        if (!self::ready()) {
+        $client = $client ?: new TGS_Acc_Api_Client();
+        if (!$client->ready()) {
             return new WP_Error('tgs_acc_not_ready', 'Chưa cấu hình kết nối phần mềm kế toán.');
         }
-        $res = (new TGS_Acc_Api_Client())->get('/api/v1/warehouses');
+        $res = $client->get('/api/v1/warehouses');
         if (is_wp_error($res)) {
             return $res;
         }
@@ -98,7 +114,7 @@ class TGS_Acc_Warehouse_Sync
             }
             $map[$branch][$code] = ['name' => (string) ($w['name'] ?? ''), 'default' => !empty($w['isDefault'])];
         }
-        update_site_option(self::MAP, ['at' => time(), 'branches' => $map]);
+        update_site_option($key, ['at' => time(), 'branches' => $map]);
         return $map;
     }
 
@@ -109,7 +125,7 @@ class TGS_Acc_Warehouse_Sync
      */
     public static function normalize(array &$docs)
     {
-        $map = self::branches();
+        $map = self::branches(false, (int) ($docs[0]['extra']['blogId'] ?? 0)); // OKT-CAU-DAO — kho theo kết nối của blog có phiếu
         if (is_wp_error($map)) {
             $map = [];
         }
