@@ -20,7 +20,7 @@
  *   - Trang Cổng kế toán → tab "Gửi chứng từ";
  *   - Dòng lệnh / lịch chạy:
  *
- *   php wp-content/plugins/tgs_accounting_bridge/tools/day-ke-toan.php --blog=95 --from=2026-10-01 --to=2026-10-09 [--dry]
+ *   php wp-content/plugins/open-ketoan-bridge/tools/day-ke-toan.php --blog=95 --from=2026-10-01 --to=2026-10-09 [--dry]
  *
  * Gửi lại bao nhiêu lần cũng không ghi trùng: mỗi chứng từ có khoá cố định; nội dung
  * đổi thì tự tăng phiên bản (bên kế toán ghi số âm bút toán cũ, ghi bút toán mới);

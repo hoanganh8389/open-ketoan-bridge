@@ -6,11 +6,11 @@
  * Từ chối mọi câu lệnh không phải SELECT; mở kết nối ở chế độ ReadOnly; giới hạn thời gian và số dòng.
  *
  *   # Một câu truy vấn tuỳ ý (chỉ SELECT):
- *   php wp-content/plugins/tgs_accounting_bridge/tools/htsoft-chi-doc.php vat "SELECT TOP 5 name FROM sys.tables"
+ *   php wp-content/plugins/open-ketoan-bridge/tools/htsoft-chi-doc.php vat "SELECT TOP 5 name FROM sys.tables"
  *
  *   # Lấy cả bộ phục vụ phân tích kế toán, ghi ra thư mục (mặc định D:\htsoft-src\notes\db):
- *   php wp-content/plugins/tgs_accounting_bridge/tools/htsoft-chi-doc.php vat --bo-ke-toan
- *   php wp-content/plugins/tgs_accounting_bridge/tools/htsoft-chi-doc.php vat --bo-ke-toan --out=D:\htsoft-src\notes\db
+ *   php wp-content/plugins/open-ketoan-bridge/tools/htsoft-chi-doc.php vat --bo-ke-toan
+ *   php wp-content/plugins/open-ketoan-bridge/tools/htsoft-chi-doc.php vat --bo-ke-toan --out=D:\htsoft-src\notes\db
  *
  * Tham số đầu: vat = database thuế (db_vat) · main = database nội bộ.
  *

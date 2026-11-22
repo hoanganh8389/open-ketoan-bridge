@@ -107,7 +107,7 @@ class TGS_Acc_Admin
 
     private static function asset($file)
     {
-        return plugins_url('assets/' . $file, TGS_ACC_BRIDGE_PATH . 'tgs-accounting-bridge.php');
+        return plugins_url('assets/' . $file, TGS_ACC_BRIDGE_PATH . 'open-ketoan-bridge.php');
     }
 
     private static function ver($file)

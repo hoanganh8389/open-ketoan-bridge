@@ -315,9 +315,9 @@ Khoá:      <?php echo esc_html(TGS_Acc_Gate::key()); ?></pre>
         <div class="tacc-card">
             <div class="tacc-card__title">Lịch chạy tự động (máy chủ)</div>
             <div class="tacc-muted">aaPanel → Cron → Shell script, mỗi 15–30 phút. Bán hàng không phụ thuộc kế toán: kế toán dừng thì lần chạy sau gửi bù.</div>
-            <pre class="tacc-pre">cd <?php echo esc_html(untrailingslashit(ABSPATH)); ?> && php wp-content/plugins/tgs_accounting_bridge/tools/day-ke-toan.php --all --days=2</pre>
+            <pre class="tacc-pre">cd <?php echo esc_html(untrailingslashit(ABSPATH)); ?> && php wp-content/plugins/<?php echo esc_html(basename(untrailingslashit(TGS_ACC_BRIDGE_PATH))); ?>/tools/day-ke-toan.php --all --days=2</pre>
             <div class="tacc-muted">Đối chiếu số hai bên theo ngày (chỉ đọc):</div>
-            <pre class="tacc-pre">php wp-content/plugins/tgs_accounting_bridge/tools/doi-chieu-ke-toan.php --all --from=<?php echo esc_html($tacc_month1); ?> --to=<?php echo esc_html($tacc_today); ?></pre>
+            <pre class="tacc-pre">php wp-content/plugins/<?php echo esc_html(basename(untrailingslashit(TGS_ACC_BRIDGE_PATH))); ?>/tools/doi-chieu-ke-toan.php --all --from=<?php echo esc_html($tacc_month1); ?> --to=<?php echo esc_html($tacc_today); ?></pre>
         </div>
     </section>
 </div>

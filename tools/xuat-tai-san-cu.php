@@ -5,8 +5,8 @@
  *
  * CHỈ ĐỌC: dùng kết nối ReadOnly như htsoft-chi-doc.php, chỉ chạy câu SELECT, không in mật khẩu.
  *
- *   php wp-content/plugins/tgs_accounting_bridge/tools/xuat-tai-san-cu.php --den=2026-09-30
- *   php wp-content/plugins/tgs_accounting_bridge/tools/xuat-tai-san-cu.php --den=2026-09-30 --out=D:\htsoft-src\export\tai-san.csv
+ *   php wp-content/plugins/open-ketoan-bridge/tools/xuat-tai-san-cu.php --den=2026-09-30
+ *   php wp-content/plugins/open-ketoan-bridge/tools/xuat-tai-san-cu.php --den=2026-09-30 --out=D:\htsoft-src\export\tai-san.csv
  *
  * --den: ngày chốt chuyển sổ (thường là ngày cuối tháng đã khấu hao xong ở phần mềm cũ). Mỗi tài sản lấy trạng thái
  *        ở dòng sổ tài sản gần nhất tới hết ngày đó: nguyên giá, giá trị tính khấu hao, luỹ kế, số tháng còn lại,
