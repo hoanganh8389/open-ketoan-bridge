@@ -79,7 +79,8 @@ class TGS_Acc_Selfcheck
             $ls = (string) ($deps['link_status'] ?? (class_exists('TGS_Acc_Install') ? TGS_Acc_Install::status($blog) : ''));
             if ($ls !== 'active') {
                 $what = ['' => 'chưa đăng ký với open-ketoan — bấm Đăng ký ở Cài đặt', 'unknown' => 'open-ketoan chưa biết cửa hàng này — bấm Đăng ký ở Cài đặt', 'pending' => 'chờ kế toán nhập mã nối (Kết nối open-pos → Nhận cửa hàng) ở đúng sổ của cửa hàng', 'revoked' => 'đã bị thu hồi bên open-ketoan'][$ls] ?? $ls;
-                self::add($c, 'SC-1', 'warn', 'Khoá cài đặt: cửa hàng ' . $what . '. Đơn giữ trong hàng chờ, nối xong gửi bù', ['key_mode' => $mode, 'url' => $url, 'profile' => $profile, 'link' => $ls]);
+                // [2026-11-23 04:20 PM Johnny Chu - Chu Hoàng Anh] OKT-TOPO-11 — đặc tả 75 SC-1: blog bị thu hồi bên open-ketoan = ĐỎ (cửa hàng đã nối bị cắt, cần người xử lý); chưa đăng ký / chờ mã nối = vàng.
+                self::add($c, 'SC-1', $ls === 'revoked' ? 'fail' : 'warn', 'Khoá cài đặt: cửa hàng ' . $what . '. Đơn giữ trong hàng chờ, nối xong gửi bù', ['key_mode' => $mode, 'url' => $url, 'profile' => $profile, 'link' => $ls]);
                 return self::finish($blog, '', $c, $now);
             }
             self::add($c, 'SC-1', 'pass', 'Khoá cài đặt + cửa hàng đã được kế toán nối vào sổ (mỗi cửa hàng một tenant — P-0)', ['key_mode' => $mode, 'url' => $url, 'profile' => $profile, 'link' => $ls]);
