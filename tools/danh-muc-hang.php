@@ -4,7 +4,7 @@
  *
  * Chuyển sang khai danh mục hàng ở kế toán, theo thứ tự:
  *
- *   1. php wp-content/plugins/tgs_accounting_bridge/tools/danh-muc-hang.php nap --dry
+ *   1. php wp-content/plugins/open-ketoan-bridge/tools/danh-muc-hang.php nap --dry
  *        đếm dữ liệu sẽ nạp (bảng giá, gán chi nhánh, mặt hàng + ĐVT + cờ, dòng giá), KHÔNG gửi
  *   2. php …/danh-muc-hang.php nap
  *        nạp sang kế toán (POST /api/v1/catalog/import; khoá API cần catalog:write). Chạy lại được: ghi đè đúng dòng.
@@ -38,7 +38,8 @@ $def = function ($name, $fallback) use ($cfg) {
 $_SERVER['HTTP_HOST'] = getenv('TGS_HOST') ?: $def('DOMAIN_CURRENT_SITE', 'localhost');
 $_SERVER['REQUEST_URI'] = getenv('TGS_PATH') ?: $def('PATH_CURRENT_SITE', '/');
 require dirname(__DIR__, 4) . '/wp-load.php';
-require_once dirname(__DIR__) . '/tgs-accounting-bridge.php';
+// [2026-11-23 02:10 PM Johnny Chu - Chu Hoàng Anh] OKT-SET-4 — tệp chính đã đổi tên open-ketoan-bridge.php (tên cũ tgs-accounting-bridge.php → lỗi nghiêm trọng).
+require_once dirname(__DIR__) . '/open-ketoan-bridge.php';
 
 $api = new TGS_Acc_Api_Client((string) ($opt['url'] ?? ''), (string) ($opt['key'] ?? ''));
 $out = function ($s) {

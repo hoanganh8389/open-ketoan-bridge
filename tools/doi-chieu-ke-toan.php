@@ -2,7 +2,7 @@
 /**
  * ĐỐI CHIẾU số ở hệ thống bán hàng với số đã vào phần mềm kế toán, theo từng ngày của MỘT shop.
  *
- *   php wp-content/plugins/tgs_accounting_bridge/tools/doi-chieu-ke-toan.php --blog=95 --from=2026-10-01 --to=2026-10-09
+ *   php wp-content/plugins/open-ketoan-bridge/tools/doi-chieu-ke-toan.php --blog=95 --from=2026-10-01 --to=2026-10-09
  *   … thêm --url=… --key=… nếu không dùng TGS_KETOAN_API_URL / TGS_KETOAN_API_KEY trong wp-config.php
  *   … thêm --all để chạy lần lượt mọi shop áp dụng thuế
  *
@@ -33,7 +33,8 @@ $def = function ($name, $fallback) use ($cfg) {
 $_SERVER['HTTP_HOST'] = getenv('TGS_HOST') ?: $def('DOMAIN_CURRENT_SITE', 'localhost');
 $_SERVER['REQUEST_URI'] = getenv('TGS_PATH') ?: $def('PATH_CURRENT_SITE', '/');
 require dirname(__DIR__, 4) . '/wp-load.php';
-require_once dirname(__DIR__) . '/tgs-accounting-bridge.php';
+// [2026-11-23 02:10 PM Johnny Chu - Chu Hoàng Anh] OKT-SET-4 — tệp chính đã đổi tên open-ketoan-bridge.php (tên cũ tgs-accounting-bridge.php → lỗi nghiêm trọng).
+require_once dirname(__DIR__) . '/open-ketoan-bridge.php';
 
 /** Chạy lại chính lệnh này trong một tiến trình khác với danh sách tham số cho trước. */
 $rerun = function (array $args) {

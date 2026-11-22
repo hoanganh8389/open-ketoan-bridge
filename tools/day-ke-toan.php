@@ -2,8 +2,8 @@
 /**
  * ĐẨY CHỨNG TỪ của một shop sang phần mềm kế toán.
  *
- *   php wp-content/plugins/tgs_accounting_bridge/tools/day-ke-toan.php --blog=95 --from=2026-10-01 --to=2026-10-09 --dry
- *   php wp-content/plugins/tgs_accounting_bridge/tools/day-ke-toan.php --blog=95 --from=2026-10-01 --to=2026-10-09
+ *   php wp-content/plugins/open-ketoan-bridge/tools/day-ke-toan.php --blog=95 --from=2026-10-01 --to=2026-10-09 --dry
+ *   php wp-content/plugins/open-ketoan-bridge/tools/day-ke-toan.php --blog=95 --from=2026-10-01 --to=2026-10-09
  *
  *   --dry        chỉ dựng chứng từ, in tổng kết + chứng từ đầu tiên, KHÔNG gửi
  *   --force      gửi lại cả chứng từ không đổi
@@ -30,7 +30,8 @@ $def = function ($name, $fallback) use ($cfg) {
 $_SERVER['HTTP_HOST'] = getenv('TGS_HOST') ?: $def('DOMAIN_CURRENT_SITE', 'localhost');
 $_SERVER['REQUEST_URI'] = getenv('TGS_PATH') ?: $def('PATH_CURRENT_SITE', '/');
 require dirname(__DIR__, 4) . '/wp-load.php';
-require_once dirname(__DIR__) . '/tgs-accounting-bridge.php';
+// [2026-11-23 02:10 PM Johnny Chu - Chu Hoàng Anh] OKT-SET-4 — tệp chính đã đổi tên open-ketoan-bridge.php (tên cũ tgs-accounting-bridge.php → lỗi nghiêm trọng).
+require_once dirname(__DIR__) . '/open-ketoan-bridge.php';
 
 $shop = (int) ($opt['blog'] ?? 0);
 
