@@ -103,6 +103,12 @@ class TGS_Acc_Events
     const REALTIME_TIMEOUT = 5; // giây chờ mỗi lời gọi khi gửi tức thời trong request
     const BREAKER_MSG = 'Cầu dao mở: lần gửi gần nhất không tới được kế toán — xếp hàng, cron thử lại khi cầu dao hết hạn';
 
+    /** [2026-11-23 12:10 PM Johnny Chu - Chu Hoàng Anh] OKT-SET-2 — blog đi khoá cài đặt mà chưa được kế toán nối vào sổ: sổ nội bộ giữ đơn (I-3). */
+    public static function held($blog_id)
+    {
+        return class_exists('TGS_Acc_Install') && TGS_Acc_Install::holds((int) $blog_id);
+    }
+
     /** Trạng thái cầu dao của blog: ['until' => ts, 'fails' => n, 'since' => ts, 'msg' => …] hoặc []. */
     public static function breaker($blog_id)
     {
@@ -506,10 +512,20 @@ class TGS_Acc_Events
                 }
                 continue;
             }
+            // [2026-11-23 12:10 PM Johnny Chu - Chu Hoàng Anh] OKT-SET-2 — cửa hàng chưa nối vào sổ (khoá cài đặt, chờ mã nối): không gửi sổ nội bộ, giữ trong hàng chờ (không tính lần thử).
+            if (self::held($g['blog'])) {
+                self::append($date, [['t' => self::now(), 'rid' => $g['ids'][0], 'target' => '', 'blog' => $g['blog'], 'ledger' => $g['ledger'], 'ct' => $g['ct'], 'gt' => $g['gt'], 'n' => 0, 'next' => 0, 'hold' => 'link', 'msg' => TGS_Acc_Install::HOLD_MSG]], 'retry');
+                if (!in_array('tax', self::targets(), true)) {
+                    continue;
+                }
+            }
             // OKT-CAU-DAO — cầu dao mở: không gửi (không giữ tiến trình FPM chờ kế toán), xếp hàng tới lúc cầu dao hết hạn.
             if (self::breaker_open($g['blog'])) {
                 $until = (int) self::breaker($g['blog'])['until'];
                 foreach (self::targets() as $target) {
+                    if ($target === '' && self::held($g['blog'])) {
+                        continue;
+                    }
                     self::append($date, [['t' => self::now(), 'rid' => $g['ids'][0] . ($target ? '-' . $target : ''), 'target' => $target, 'blog' => $g['blog'], 'ledger' => $g['ledger'], 'ct' => $g['ct'], 'gt' => $g['gt'], 'n' => 0, 'next' => $until, 'msg' => self::BREAKER_MSG]], 'retry');
                 }
                 continue;
@@ -527,13 +543,18 @@ class TGS_Acc_Events
                 continue;
             }
             foreach (self::targets() as $target) {
+                if ($target === '' && self::held($g['blog'])) {
+                    continue; // OKT-SET-2 — đã giữ ở trên
+                }
                 $r = self::deliver($g['blog'], $built, $target);
                 if ($target === '') {
                     !empty($r['ok']) ? self::reset_breaker($g['blog']) : (!empty($r['transport']) ? self::trip($g['blog'], $r['msg']) : null);
                 }
                 self::append($date, [['t' => self::now(), 'res' => $r['ok'] ? 'ok' : 'error', 'target' => $target ?: 'noi-bo', 'blog' => $g['blog'], 'ids' => $g['ids']] + $r]);
                 if (!$r['ok']) {
-                    self::append($date, [['t' => self::now(), 'rid' => $g['ids'][0] . ($target ? '-' . $target : ''), 'target' => $target, 'blog' => $g['blog'], 'ledger' => $g['ledger'], 'ct' => $g['ct'], 'gt' => $g['gt'], 'n' => 1, 'next' => time() + 60, 'msg' => $r['msg']]], 'retry');
+                    // OKT-SET-2 — open-ketoan vừa trả BLOG_NOT_LINKED (client đã ghi trạng thái) → giữ, không tính lần thử.
+                    $hold = $target === '' && self::held($g['blog']);
+                    self::append($date, [['t' => self::now(), 'rid' => $g['ids'][0] . ($target ? '-' . $target : ''), 'target' => $target, 'blog' => $g['blog'], 'ledger' => $g['ledger'], 'ct' => $g['ct'], 'gt' => $g['gt'], 'n' => $hold ? 0 : 1, 'next' => $hold ? 0 : time() + 60, 'msg' => $r['msg']] + ($hold ? ['hold' => 'link'] : [])], 'retry');
                 }
             }
             TGS_Acc_Api_Client::$request_timeout = 0; // OKT-CAU-DAO — trả thời gian chờ đầy đủ cho phần sau của tiến trình
@@ -707,6 +728,9 @@ class TGS_Acc_Events
             if (!self::enabled((int) ($r['blog'] ?? 0))) {
                 continue; // OKT-I3 — blog tắt gửi tức thời / chưa có khoá: giữ trong hàng chờ
             }
+            if ((string) ($r['target'] ?? '') === '' && self::held((int) ($r['blog'] ?? 0))) {
+                continue; // [2026-11-23 12:10 PM Johnny Chu - Chu Hoàng Anh] OKT-SET-2 — cửa hàng chưa nối vào sổ: giữ nguyên, không tăng lần thử; nối xong lượt sau gửi bù
+            }
             if (!$force && (string) ($r['target'] ?? '') === '' && self::breaker_open((int) ($r['blog'] ?? 0))) {
                 continue; // OKT-CAU-DAO — cầu dao mở: không thử nhóm nào của blog tới khi hết hạn (một lần hết giờ là đủ)
             }
@@ -718,11 +742,12 @@ class TGS_Acc_Events
             if ((string) ($r['target'] ?? '') === '') {
                 !empty($res['ok']) ? self::reset_breaker((int) $r['blog']) : (!empty($res['transport']) ? self::trip((int) $r['blog'], $res['msg']) : null);
             }
-            $n = (int) ($r['n'] ?? 1) + 1;
+            $hold = !$res['ok'] && (string) ($r['target'] ?? '') === '' && self::held((int) $r['blog']);
+            $n = (int) ($r['n'] ?? 1) + ($hold ? 0 : 1); // OKT-SET-2 — blog vừa thành chưa nối: không tính lần thử
             if ($res['ok']) {
                 $ok++;
                 self::append($date, [['t' => self::now(), 'rid' => $rid, 'done' => 1, 'n' => $n, 'sent' => $res['sent'], 'cancelled' => $res['cancelled']]], 'retry');
-            } elseif ($n > self::RETRY_MAX) {
+            } elseif ($n > self::RETRY_MAX && !$hold) {
                 self::append($date, [['t' => self::now(), 'rid' => $rid, 'gave_up' => 1, 'n' => $n, 'msg' => $res['msg']]], 'retry');
             } else {
                 self::append($date, [['t' => self::now(), 'rid' => $rid, 'target' => (string) ($r['target'] ?? ''), 'blog' => (int) $r['blog'], 'ledger' => $r['ledger'] ?? [], 'ct' => $r['ct'] ?? [], 'gt' => $r['gt'] ?? [], 'n' => $n, 'next' => time() + 60 * min(60, 2 ** min(6, $n - 1)), 'msg' => $res['msg']]], 'retry');

@@ -253,7 +253,7 @@ $GLOBALS['KEYMODE'][2] = 'legacy';
 $r = TGS_Acc_Selfcheck::run(2, [], ['profile' => 'bizcity'] + deps(new FakeClient(tenant_ok()), $GOOD_DOCS));
 check('bizcity + khoá chung: SC-1 vàng, nêu P-0 khoá riêng từng site', lvl($r, 'SC-1') === 'warn' && strpos(msg($r, 'SC-1'), 'bizcity') !== false);
 $r = TGS_Acc_Selfcheck::run(2, [], ['profile' => 'chain', 'profile_source' => 'option'] + deps(new FakeClient(tenant_ok()), $GOOD_DOCS));
-check('nhiều cửa hàng + khoá chung: SC-1 vàng, nêu khoá cài đặt OKT-SET-1', lvl($r, 'SC-1') === 'warn' && strpos(msg($r, 'SC-1'), 'OKT-SET-1') !== false);
+check('nhiều cửa hàng + khoá chung: SC-1 vàng, chỉ cách khai khoá cài đặt', lvl($r, 'SC-1') === 'warn' && strpos(msg($r, 'SC-1'), 'khoá cài đặt (okti_') !== false);
 $GLOBALS['KEYMODE'][2] = 'own';
 $r = TGS_Acc_Selfcheck::run(2, [], ['profile' => 'bizcity'] + deps(new FakeClient(tenant_ok()), $GOOD_DOCS));
 check('bizcity + khoá riêng: SC-1 xanh', lvl($r, 'SC-1') === 'pass');
@@ -274,6 +274,21 @@ $paused = [];
 reset_state(); $GLOBALS['KEYMODE'] = [2 => 'own', 5 => 'legacy']; $GLOBALS['NET']['tgs_acc_tenant_map'] = [5 => 'shopa'];
 $r = TGS_Acc_Selfcheck::run(2, ['confirm_tenant' => true], deps(new FakeClient(tenant_ok()), $GOOD_DOCS));
 check('blog khoá riêng trỏ trùng tenant của khoá chung: SC-3 đỏ', lvl($r, 'SC-3') === 'fail');
+
+// 21. [2026-11-23 12:50 PM Johnny Chu - Chu Hoàng Anh] OKT-SET-2 — nhánh khoá cài đặt (chain): SC-1 = khoá cài đặt + cửa hàng đã nối
+reset_state(); $GLOBALS['KEYMODE'] = [2 => 'install'];
+$fc = new FakeClient(tenant_ok());
+$r = TGS_Acc_Selfcheck::run(2, [], ['profile' => 'chain', 'profile_source' => 'option', 'link_status' => 'pending'] + deps($fc, $GOOD_DOCS));
+check('khoá cài đặt, blog chờ mã nối: SC-1 vàng, nêu mã nối, KHÔNG gọi API (không SC-2/SC-4 đỏ giả)', lvl($r, 'SC-1') === 'warn' && strpos(msg($r, 'SC-1'), 'mã nối') !== false && $fc->calls === [] && lvl($r, 'SC-2') === '' && $r['verdict'] === 'warn');
+$r = TGS_Acc_Selfcheck::run(2, [], ['profile' => 'chain', 'profile_source' => 'option', 'link_status' => ''] + deps(new FakeClient(tenant_ok()), $GOOD_DOCS));
+check('khoá cài đặt, blog chưa đăng ký: SC-1 vàng, chỉ nút Đăng ký', lvl($r, 'SC-1') === 'warn' && strpos(msg($r, 'SC-1'), 'Đăng ký') !== false);
+$r = TGS_Acc_Selfcheck::run(2, ['confirm_tenant' => true], ['profile' => 'chain', 'profile_source' => 'option', 'link_status' => 'active'] + deps(new FakeClient(tenant_ok()), $GOOD_DOCS));
+check('khoá cài đặt, blog đã nối: SC-1 xanh, SC-2 đọc tenant qua (khoá, blog)', lvl($r, 'SC-1') === 'pass' && lvl($r, 'SC-2') === 'pass' && $r['tenant'] === 'shopa');
+$paused = [];
+reset_state(); $GLOBALS['KEYMODE'] = [2 => 'install', 5 => 'install']; $GLOBALS['NET']['tgs_acc_tenant_map'] = [5 => 'shopa'];
+$r = TGS_Acc_Selfcheck::run(2, ['confirm_tenant' => true], ['profile' => 'chain', 'link_status' => 'active'] + deps(new FakeClient(tenant_ok()), $GOOD_DOCS));
+TGS_Acc_Selfcheck::enforce($r, $pauser);
+check('khoá cài đặt: hai cửa hàng cùng tenant → SC-3 đỏ + tự tạm dừng (P-0 giữ ở cả ba mô hình)', lvl($r, 'SC-3') === 'fail' && $paused === [2]);
 
 echo ($fail ? 'KẾT QUẢ: SAI ' : 'KẾT QUẢ: ĐẠT ') . "{$ok}/" . ($ok + $fail) . "\n";
 exit($fail ? 1 : 0);

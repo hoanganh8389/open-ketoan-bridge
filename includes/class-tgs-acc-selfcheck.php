@@ -73,13 +73,23 @@ class TGS_Acc_Selfcheck
             self::add($c, 'SC-1', 'fail', 'Blog chưa có ' . ($mode === 'none' ? 'khoá' : 'URL') . ' kế toán — không có đường nối để kiểm', ['key_mode' => $mode, 'url' => $url, 'profile' => $profile]);
             return self::finish($blog, '', $c, $now);
         }
-        if ($mode === 'own') {
-            $msg = ['bizcity' => 'Khoá riêng của site (bizcity — đúng P-0)', 'chain' => 'Khoá riêng của blog (mô hình nhiều cửa hàng cho phép; khoá cài đặt dùng chung khi open-ketoan có — OKT-SET-1)', 'single' => 'Khoá của site'][$profile] ?? 'Khoá riêng của blog';
+        // [2026-11-23 12:10 PM Johnny Chu - Chu Hoàng Anh] OKT-SET-2 — nhánh khoá cài đặt (chain): SC-1 = khoá cài đặt + cửa hàng đã được kế toán nối vào sổ. Chưa nối → vàng, dừng ở đây
+        // (open-ketoan trả 403 BLOG_NOT_LINKED cho mọi lời gọi; đơn giữ trong hàng chờ, không phải lỗi khoá).
+        if ($mode === 'install') {
+            $ls = (string) ($deps['link_status'] ?? (class_exists('TGS_Acc_Install') ? TGS_Acc_Install::status($blog) : ''));
+            if ($ls !== 'active') {
+                $what = ['' => 'chưa đăng ký với open-ketoan — bấm Đăng ký ở Cài đặt', 'unknown' => 'open-ketoan chưa biết cửa hàng này — bấm Đăng ký ở Cài đặt', 'pending' => 'chờ kế toán nhập mã nối (Kết nối open-pos → Nhận cửa hàng) ở đúng sổ của cửa hàng', 'revoked' => 'đã bị thu hồi bên open-ketoan'][$ls] ?? $ls;
+                self::add($c, 'SC-1', 'warn', 'Khoá cài đặt: cửa hàng ' . $what . '. Đơn giữ trong hàng chờ, nối xong gửi bù', ['key_mode' => $mode, 'url' => $url, 'profile' => $profile, 'link' => $ls]);
+                return self::finish($blog, '', $c, $now);
+            }
+            self::add($c, 'SC-1', 'pass', 'Khoá cài đặt + cửa hàng đã được kế toán nối vào sổ (mỗi cửa hàng một tenant — P-0)', ['key_mode' => $mode, 'url' => $url, 'profile' => $profile, 'link' => $ls]);
+        } elseif ($mode === 'own') {
+            $msg = ['bizcity' => 'Khoá riêng của site (bizcity — đúng P-0)', 'chain' => 'Khoá riêng của blog (mô hình nhiều cửa hàng cho phép; khoá riêng thắng khoá cài đặt)', 'single' => 'Khoá của site'][$profile] ?? 'Khoá riêng của blog';
             self::add($c, 'SC-1', 'pass', $msg, ['key_mode' => $mode, 'url' => $url, 'profile' => $profile]);
         } else {
             $msg = [
                 'bizcity' => 'bizcity đang dùng khoá chung của mạng (giai đoạn chuyển) — P-0: mỗi site phải có khoá riêng của phần mềm kế toán của nó',
-                'chain'   => 'Khoá chung hôm nay trỏ MỘT tenant cho cả mạng — mô hình nhiều cửa hàng cần khoá cài đặt để mỗi cửa hàng là một tenant (P-0, chờ open-ketoan OKT-SET-1)',
+                'chain'   => 'Khoá chung trỏ MỘT tenant cho cả mạng — mô hình nhiều cửa hàng: khai khoá cài đặt (okti_…) ở Cài đặt để mỗi cửa hàng là một tenant (P-0)',
             ][$profile] ?? 'Đang dùng khoá chung của mạng — chưa chứng minh được một blog = một tenant';
             self::add($c, 'SC-1', 'warn', $msg, ['key_mode' => $mode, 'url' => $url, 'profile' => $profile]);
         }

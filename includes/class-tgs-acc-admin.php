@@ -27,7 +27,7 @@ class TGS_Acc_Admin
         add_filter('tgs_shop_dashboard_routes', [__CLASS__, 'register_route']);
         add_filter('tgs_shop_workflow_nav', [__CLASS__, 'add_nav_item'], 45, 2);
         add_action('admin_enqueue_scripts', [__CLASS__, 'enqueue'], 30);
-        foreach (['overview', 'push', 'log', 'runs', 'sample', 'ping', 'save', 'calls', 'lists', 'events', 'events_retry', 'pause', 'selfcheck', 'trace'] as $a) {
+        foreach (['overview', 'push', 'log', 'runs', 'sample', 'ping', 'save', 'calls', 'lists', 'events', 'events_retry', 'pause', 'selfcheck', 'trace', 'topology'] as $a) {
             add_action('wp_ajax_tgs_acc_' . $a, [__CLASS__, 'ajax_' . $a]);
         }
         // [2026-11-21 10:15 PM Johnny Chu - Chu Hoàng Anh] S002-13 — blog đổi nguồn phiếu thì làm mới danh sách blog nguồn sổ POS.
@@ -146,6 +146,9 @@ class TGS_Acc_Admin
         wp_enqueue_script('tgs-acc-runner', self::asset('push-runner.js'), [], self::ver('push-runner.js'), true);
         wp_localize_script('tgs-acc-runner', 'tgsAccBridge', self::js_config());
         wp_enqueue_script('tgs-acc-' . basename($script, '.js'), self::asset($script), ['tgs-acc-runner'], self::ver($script), true);
+        if ($view === self::VIEW) {
+            wp_enqueue_script('tgs-acc-ket-noi', self::asset('ket-noi.js'), ['tgs-acc-runner'], self::ver('ket-noi.js'), true); // [2026-11-23 12:40 PM Johnny Chu - Chu Hoàng Anh] OKT-SET-3
+        }
     }
 
     /* ───────────────────────────── dữ liệu ───────────────────────────── */
@@ -519,6 +522,47 @@ class TGS_Acc_Admin
             }
         }
         wp_send_json_success($out);
+    }
+
+    // [2026-11-23 12:40 PM Johnny Chu - Chu Hoàng Anh] OKT-SET-3 — màn Cài đặt (ma trận ba mô hình) + Sơ đồ kết nối (open-setup 82 B-2, B-4, B-7; luật tối thượng P-0).
+    /**
+     * op=get: dữ liệu ma trận + sơ đồ · op=profile: chọn mô hình · op=install_key: lưu khoá cài đặt · op=register: đăng ký cửa hàng
+     * (blogs[], renew[]) · op=refresh: đọc trạng thái từ open-ketoan · op=ping: ping tất cả ngay. Ghi = quản trị cấp cao.
+     */
+    public static function ajax_topology()
+    {
+        $op = sanitize_key((string) ($_POST['op'] ?? 'get'));
+        self::guard($op === 'get' ? 'view' : 'configure');
+        $ids = static function ($k) {
+            $v = $_POST[$k] ?? [];
+            return array_values(array_filter(array_map('intval', is_array($v) ? $v : explode(',', (string) $v))));
+        };
+        $r = true;
+        $msg = '';
+        if ($op === 'profile') {
+            $r = TGS_Acc_Profile::set((string) wp_unslash($_POST['profile'] ?? ''));
+            $msg = 'Đã lưu mô hình.';
+        } elseif ($op === 'install_key') {
+            $r = TGS_Acc_Config::save(['install_key' => (string) wp_unslash($_POST['install_key'] ?? '')]);
+            $msg = 'Đã lưu khoá cài đặt.';
+            if (!is_wp_error($r) && TGS_Acc_Install::active()) {
+                $reg = TGS_Acc_Install::register();
+                $msg .= is_wp_error($reg) ? ' Chưa đăng ký được cửa hàng: ' . $reg->get_error_message() : ' Đã đăng ký cửa hàng với open-ketoan.';
+            }
+        } elseif ($op === 'register') {
+            $r = TGS_Acc_Install::register($ids('blogs'), $ids('renew'));
+            $msg = 'Đã đăng ký với open-ketoan.';
+        } elseif ($op === 'refresh') {
+            $r = TGS_Acc_Install::refresh();
+        } elseif ($op === 'ping') {
+            TGS_Acc_Install::ping();
+        } elseif ($op !== 'get') {
+            wp_send_json_error(['message' => 'Thao tác không hợp lệ.']);
+        }
+        if (is_wp_error($r)) {
+            wp_send_json_error(['message' => $r->get_error_message(), 'topology' => TGS_Acc_Install::topology()]);
+        }
+        wp_send_json_success(['topology' => TGS_Acc_Install::topology(), 'message' => $msg]);
     }
 
     public static function ajax_save()

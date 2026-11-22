@@ -345,6 +345,50 @@ class TGS_Acc_Cli
         }
     }
 
+    // [2026-11-23 12:10 PM Johnny Chu - Chu Hoàng Anh] OKT-SET-2 — khoá cài đặt (mô hình nhiều cửa hàng): trạng thái, đăng ký cửa hàng, ping.
+    /**
+     * Khoá cài đặt open-pos (mô hình chain): mỗi cửa hàng một tenant, nối bằng mã nối kế toán nhập ở open-ketoan.
+     *
+     * ## OPTIONS
+     * [--register]
+     * : đăng ký mọi blog đi khoá cài đặt (blog mới → chờ + mã nối)
+     * [--renew=<blog>]
+     * : xin mã nối mới cho blog đang chờ (nhiều blog: 2,3)
+     * [--refresh]
+     * : đọc trạng thái từ open-ketoan
+     * [--ping]
+     * : ping ngay (như lịch 5 phút)
+     */
+    public function install($args, $assoc)
+    {
+        $renew = isset($assoc['renew']) ? array_filter(array_map('intval', explode(',', (string) $assoc['renew']))) : [];
+        $r = null;
+        if (!empty($assoc['register']) || $renew) {
+            $r = TGS_Acc_Install::register($renew ?: [], $renew);
+        } elseif (!empty($assoc['refresh'])) {
+            $r = TGS_Acc_Install::refresh();
+        }
+        if (is_wp_error($r)) {
+            WP_CLI::error($r->get_error_message());
+        }
+        if (!empty($assoc['ping'])) {
+            TGS_Acc_Install::ping();
+        }
+        $t = TGS_Acc_Install::topology();
+        WP_CLI::line('Mô hình: ' . ($t['profile'] ?: '(chưa khai)') . ' · khoá cài đặt: ' . ($t['install']['key_masked'] ?: '(chưa có)') . ' · mã bản cài: ' . ($t['install']['code'] ?: '(chưa biết)') . ' · ' . ($t['install']['active'] ? 'ĐANG DÙNG' : 'không dùng'));
+        if ($t['install']['error'] !== '') {
+            WP_CLI::warning('Lần gọi open-ketoan gần nhất lỗi: ' . $t['install']['error']);
+        }
+        $rows = array_map(function ($b) {
+            $p = (array) ($b['ping'] ?? []);
+            return ['blog' => $b['blog'], 'tên' => $b['name'], 'khoá' => $b['key_mode'], 'nối' => $b['link'] ?: '—', 'tenant' => $b['tenant'] ?: '—', 'mã nối' => $b['link_code'] ?: '', 'ping' => $p ? (!empty($p['ok']) ? $p['ms'] . ' ms' : '✕ ' . mb_substr((string) ($p['msg'] ?? ''), 0, 40)) : '—', 'hàng chờ' => $b['queue']];
+        }, $t['blogs']);
+        WP_CLI\Utils\format_items('table', $rows, ['blog', 'tên', 'khoá', 'nối', 'tenant', 'mã nối', 'ping', 'hàng chờ']);
+        foreach ($t['hosts'] as $h) {
+            WP_CLI::line('Máy ' . $h['url'] . ': ' . (isset($h['ok']) ? ($h['ok'] ? $h['ms'] . ' ms' : '✕ ' . ($h['msg'] ?? '')) : 'chưa ping') . (isset($h['version']) && $h['version'] !== '' ? ' · bản ' . $h['version'] : '') . ' · ' . $h['tenants'] . ' tenant / ' . $h['blogs'] . ' site');
+        }
+    }
+
     // [2026-11-22 09:45 PM Johnny Chu - Chu Hoàng Anh] OKT-H4 — đối chiếu WP ↔ kế toán (chỉ đọc).
     /**
      * Đối chiếu chứng từ (thiếu, mồ côi, chờ, lỗi) và tồn theo SKU giữa WP và kế toán của shop. Chỉ đọc.
