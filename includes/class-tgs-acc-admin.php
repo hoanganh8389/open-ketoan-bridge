@@ -390,7 +390,7 @@ class TGS_Acc_Admin
 
     /**
      * Tab Tự kiểm (OKT-SC-2, luật I-8): op=list → kết quả gần nhất của mọi shop + lần chạy hằng ngày; op=run → chạy lại một shop
-     * (SC-1…SC-11 qua API bằng khoá của shop; sai / trùng tenant thì tự tạm dừng gửi). Không ghi kế toán, không ghi sổ POS.
+     * (SC-1…SC-12 qua API bằng khoá của shop; sai / trùng tenant thì tự tạm dừng gửi). Không ghi kế toán, không ghi sổ POS.
      */
     public static function ajax_selfcheck()
     {
