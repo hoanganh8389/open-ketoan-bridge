@@ -33,6 +33,10 @@ class TGS_Acc_Selfcheck
     const QUEUE_FAIL_DAYS = 6;                      // hàng chờ giữ 7 ngày (TGS_Acc_Events::RETRY_DAYS)
     const CLOCK_WARN = 60;
     const CLOCK_FAIL = 300;
+    // [2026-11-22 02:00 PM Johnny Chu - Chu Hoàng Anh] OKT-SC-2 — cron hằng ngày 02:30 (giờ site), tổng kết cấp mạng.
+    const DAILY_HOOK = 'tgs_acc_selfcheck_daily';
+    const DAILY_OPTION = 'tgs_acc_selfcheck_daily';
+    const DAILY_AT = '02:30';
 
     /**
      * @param array $opts samples, scan, confirm_tenant (bool: lưu mã tenant đang thấy làm mã đã xác nhận)
@@ -177,10 +181,100 @@ class TGS_Acc_Selfcheck
         $s = isset($deps['status']) ? call_user_func($deps['status'], $blog) : TGS_Acc_Cli::status_data($blog);
         $q = isset($deps['queue']) ? call_user_func($deps['queue'], $blog) : TGS_Acc_Events::queue_of($blog);
         $age = ($q['oldest'] ?? '') !== '' ? max(0, ($now - strtotime((string) $q['oldest'])) / DAY_IN_SECONDS) : 0;
-        $lvl = $age >= self::QUEUE_FAIL_DAYS ? 'fail' : (($age >= self::QUEUE_WARN_DAYS || $s['pending_over_24h'] > 0 || $s['errors'] > 0) ? 'warn' : 'pass');
+        // Shop đang tạm dừng: hàng chờ được giữ tới 90 ngày (OKT-SC-2) — chỉ đỏ khi sắp quá giới hạn đó.
+        $fail_days = !empty($s['paused']) ? (class_exists('TGS_Acc_Events') ? TGS_Acc_Events::PAUSED_KEEP_DAYS : 90) - 1 : self::QUEUE_FAIL_DAYS;
+        $lvl = $age >= $fail_days ? 'fail' : (($age >= self::QUEUE_WARN_DAYS || $s['pending_over_24h'] > 0 || $s['errors'] > 0) ? 'warn' : 'pass');
         self::add($c, 'SC-10', $lvl, sprintf('Hàng chờ %d nhóm (cũ nhất %.1f ngày), chờ định khoản > 24 h: %d, lỗi: %d', (int) $q['groups'], $age, (int) $s['pending_over_24h'], (int) $s['errors']), ['queue' => (int) $q['groups'], 'oldest_days' => round($age, 1), 'pending_over_24h' => (int) $s['pending_over_24h'], 'errors' => (int) $s['errors'], 'paused' => !empty($s['paused'])]);
 
         return self::finish($blog, $tenant, $c, $now);
+    }
+
+    /**
+     * Hành động tự động theo đặc tả 75 §3: SAI hoặc TRÙNG tenant (chắc chắn — không phải "không gọi được") → tự tạm dừng gửi của
+     * blog; quầy vẫn bán, chứng từ xếp hàng (I-3). Không tự bỏ tạm dừng: admin sửa khoá, chạy lại tự kiểm, bỏ tạm dừng.
+     * @param callable|null $pause (cho test) fn($blog, $reason)
+     */
+    public static function enforce(array $r, $pause = null)
+    {
+        $why = [];
+        foreach ($r['checks'] as $c) {
+            if ($c['level'] !== 'fail') {
+                continue;
+            }
+            if ($c['id'] === 'SC-2' && isset($c['data']['confirmed'])) {
+                $why[] = 'SC-2 khoá trỏ tenant ' . ($c['data']['tenant'] ?? '?') . ', đã xác nhận ' . $c['data']['confirmed'];
+            }
+            if ($c['id'] === 'SC-3' && !empty($c['data']['others'])) {
+                $why[] = 'SC-3 tenant ' . $r['tenant'] . ' trùng blog ' . implode(', ', (array) $c['data']['others']);
+            }
+        }
+        if (!$why) {
+            return $r;
+        }
+        $reason = 'selfcheck: ' . implode('; ', $why);
+        $pause ? call_user_func($pause, $r['blog'], $reason) : TGS_Acc_Events::pause($r['blog'], $reason);
+        $r['enforced'] = 'paused';
+        $r['checks'][] = ['id' => 'SC-2', 'level' => 'fail', 'message' => 'Đã TỰ TẠM DỪNG gửi của blog (quầy vẫn bán, chứng từ xếp hàng). Sửa khoá / tenant, chạy lại tự kiểm, rồi bỏ tạm dừng', 'data' => ['reason' => $reason]];
+        update_blog_option($r['blog'], self::LAST_OPTION, $r);
+        return $r;
+    }
+
+    public static function init()
+    {
+        add_action(self::DAILY_HOOK, [__CLASS__, 'daily']);
+        add_action('init', [__CLASS__, 'schedule'], 30);
+    }
+
+    /** Lịch hằng ngày lúc 02:30 giờ site, chỉ ở site chính (lặp theo blog trong daily()). */
+    public static function schedule()
+    {
+        if (!function_exists('is_main_site') || !is_main_site() || wp_next_scheduled(self::DAILY_HOOK)) {
+            return;
+        }
+        wp_schedule_event(self::next_run(time()), 'daily', self::DAILY_HOOK);
+    }
+
+    /** Lần chạy kế tiếp lúc DAILY_AT theo múi giờ site (timestamp UTC). */
+    public static function next_run($now, $tz = null)
+    {
+        $tz = $tz ?: (function_exists('wp_timezone') ? wp_timezone() : new DateTimeZone('Asia/Ho_Chi_Minh'));
+        $d = (new DateTimeImmutable('@' . (int) $now))->setTimezone($tz);
+        [$h, $m] = array_map('intval', explode(':', self::DAILY_AT));
+        $at = $d->setTime($h, $m, 0);
+        if ($at->getTimestamp() <= (int) $now) {
+            $at = $at->modify('+1 day');
+        }
+        return $at->getTimestamp();
+    }
+
+    /** Cron: tự kiểm mọi blog có khoá, áp hành động tự động, ghi tổng kết cấp mạng. */
+    public static function daily()
+    {
+        $lock = (int) get_site_option('tgs_acc_selfcheck_lock', 0);
+        if ($lock && time() - $lock < 1800) {
+            return [];
+        }
+        update_site_option('tgs_acc_selfcheck_lock', time());
+        $sum = ['at' => gmdate('c'), 'pass' => 0, 'warn' => 0, 'fail' => 0, 'paused' => 0, 'blogs' => []];
+        try {
+            foreach (self::blogs_with_key() as $b) {
+                $r = self::enforce(self::run($b));
+                $sum[$r['verdict']]++;
+                $sum['paused'] += isset($r['enforced']) ? 1 : 0;
+                $sum['blogs'][$b] = ['verdict' => $r['verdict'], 'tenant' => $r['tenant']];
+            }
+        } finally {
+            delete_site_option('tgs_acc_selfcheck_lock');
+        }
+        update_site_option(self::DAILY_OPTION, $sum);
+        return $sum;
+    }
+
+    /** Blog có khoá kế toán (riêng hoặc chung) — những cặp phải tự kiểm. */
+    public static function blogs_with_key()
+    {
+        $ids = function_exists('get_sites') ? get_sites(['fields' => 'ids', 'number' => 0, 'deleted' => 0, 'archived' => 0, 'spam' => 0]) : [];
+        return array_values(array_filter(array_map('intval', $ids), function ($b) { return TGS_Acc_Config::key_mode($b) !== 'none'; }));
     }
 
     /** Mã bridge sẽ gửi, gom từ chứng từ đã dựng: [methods, taxes, branches, warehouses, reasons] → [mã => số lần]. */
@@ -273,4 +367,8 @@ class TGS_Acc_Selfcheck
         update_blog_option($blog, self::LAST_OPTION, $out);
         return $out;
     }
+}
+
+if (function_exists('add_action')) {
+    TGS_Acc_Selfcheck::init();
 }

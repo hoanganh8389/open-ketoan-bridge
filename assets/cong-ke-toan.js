@@ -32,6 +32,7 @@
             if (tab === 'runs') { loadRuns(); }
             if (tab === 'calls') { loadCalls(); }
             if (tab === 'events') { loadEvents(); }
+            if (tab === 'selfcheck') { loadSelfcheck(); }
             if (tab === 'lists') { initLists(); }
         }
     }
@@ -67,10 +68,82 @@
     function connCell(blog, c) {
         c = c || {};
         var q = c.queue ? ' <span class="tacc-muted">' + num(c.queue) + ' nhóm chờ</span>' : '';
+        // [2026-11-22 02:20 PM Johnny Chu - Chu Hoàng Anh] OKT-SC-2 — kết luận tự kiểm gần nhất cạnh trạng thái kết nối.
+        var sc = c.check ? ' <span class="tacc-sc ' + c.check.verdict + '" title="Tự kiểm ' + esc(fmtT(c.check.at.replace('T', ' '))) + '">' + SC_GLYPH[c.check.verdict] + '</span>' : ' <span class="tacc-sc none" title="Chưa tự kiểm">—</span>';
+        var why = c.reason ? ' <span class="tacc-muted" title="' + esc(c.reason) + '">(' + (c.reason.indexOf('selfcheck:') === 0 ? 'tự kiểm tự dừng' : esc(c.reason)) + ')</span>' : '';
         return c.paused
-            ? '<span class="tacc-pill bad">Tạm dừng</span> <span class="tacc-muted">từ ' + esc(fmtT(c.since)) + '</span>' + q + ' <a href="#" class="taccPause" data-op="resume" data-blog="' + blog + '">Bỏ tạm dừng</a>'
-            : '<span class="tacc-pill">Đang nối</span>' + q + ' <a href="#" class="taccPause" data-op="pause" data-blog="' + blog + '">Tạm dừng</a>';
+            ? '<span class="tacc-pill bad">Tạm dừng</span> <span class="tacc-muted">từ ' + esc(fmtT(c.since)) + '</span>' + why + q + sc + ' <a href="#" class="taccPause" data-op="resume" data-blog="' + blog + '">Bỏ tạm dừng</a>'
+            : '<span class="tacc-pill">Đang nối</span>' + q + sc + ' <a href="#" class="taccPause" data-op="pause" data-blog="' + blog + '">Tạm dừng</a>';
     }
+
+    /* ── tự kiểm (OKT-SC-2, luật I-8) ── */
+    var SC_IDS = ['SC-1', 'SC-2', 'SC-3', 'SC-4', 'SC-5', 'SC-6', 'SC-7', 'SC-8', 'SC-9', 'SC-10', 'SC-11'];
+    var SC_NAME = { 'SC-1': 'cấu hình', 'SC-2': 'tenant', 'SC-3': 'duy nhất', 'SC-4': 'quyền', 'SC-5': 'th.toán', 'SC-6': 'thuế', 'SC-7': 'CN · kho', 'SC-8': 'lý do', 'SC-9': 'mẫu', 'SC-10': 'hàng chờ', 'SC-11': 'đồng hồ' };
+    var SC_GLYPH = { pass: '✓', warn: '!', fail: '✕', none: '—' };
+    var SC_RANK = { none: 0, pass: 1, warn: 2, fail: 3 };
+    var scRows = {};
+    function scWorst(checks, id) {
+        var w = 'none';
+        (checks || []).forEach(function (c) { if (c.id === id && SC_RANK[c.level] > SC_RANK[w]) { w = c.level; } });
+        return w;
+    }
+    function scRowHtml(r) {
+        var l = r.last, v = l ? l.verdict : 'none';
+        var cells = SC_IDS.map(function (id) { var w = l ? scWorst(l.checks, id) : 'none'; return '<td class="c"><span class="tacc-sc ' + w + '" title="' + id + '">' + SC_GLYPH[w] + '</span></td>'; }).join('');
+        var paused = r.paused ? ' <span class="tacc-pill bad">tạm dừng' + (r.reason.indexOf('selfcheck:') === 0 ? ' (tự kiểm)' : '') + '</span>' : '';
+        return '<tr data-blog="' + r.blog + '"><td><a href="#" class="taccScPick" data-blog="' + r.blog + '"><b>' + esc(r.code) + '</b></a> <span class="tacc-muted">' + esc(r.name) + '</span>' + paused + '</td>'
+            + '<td>' + esc(l && l.tenant ? l.tenant : '?') + (r.confirmed ? '' : ' <span class="tacc-muted">(chưa xác nhận)</span>') + '</td>'
+            + '<td><span class="tacc-sc ' + v + '">' + SC_GLYPH[v] + '</span></td>' + cells
+            + '<td class="tacc-muted">' + (l ? esc(fmtT(l.at.replace('T', ' '))) + ' UTC' : 'chưa chạy') + '</td>'
+            + '<td><a href="#" class="taccScRun" data-blog="' + r.blog + '">Chạy</a></td></tr>';
+    }
+    function scRender() {
+        var head = '<tr><th>Shop</th><th>Tenant</th><th>Kết luận</th>' + SC_IDS.map(function (id) { return '<th class="c" title="' + SC_NAME[id] + '">' + id + '<div class="tacc-muted">' + SC_NAME[id] + '</div></th>'; }).join('') + '<th>Lần chạy</th><th></th></tr>';
+        var body = Object.keys(scRows).map(function (b) { return scRowHtml(scRows[b]); }).join('') || '<tr><td colspan="16" class="tacc-muted">Chưa có shop nào trong danh sách.</td></tr>';
+        $('#taccScTable').innerHTML = '<thead>' + head + '</thead><tbody>' + body + '</tbody>';
+    }
+    function scDetail(blog) {
+        var r = scRows[blog], box = $('#taccScDetail');
+        if (!r) { return; }
+        box.hidden = false;
+        if (!r.last) { box.innerHTML = '<div class="tacc-card__title">' + esc(r.code) + '</div><div class="tacc-muted">Chưa tự kiểm — bấm Chạy.</div>'; return; }
+        box.innerHTML = '<div class="tacc-card__title">' + esc(r.code) + ' → tenant ' + esc(r.last.tenant || '?') + ' <span class="tacc-sc ' + r.last.verdict + '">' + SC_GLYPH[r.last.verdict] + '</span></div>'
+            + (r.confirmed ? '' : '<div class="tacc-form"><span class="tacc-muted">Mã tenant chưa xác nhận. Đúng là đơn vị kế toán của shop này?</span> <a href="#" class="taccScRun" data-blog="' + r.blog + '" data-confirm="1">Xác nhận tenant ' + esc(r.last.tenant || '') + ' và chạy lại</a></div>')
+            + '<table class="tacc-table"><tbody>' + r.last.checks.map(function (c) { return '<tr><td style="width:36px"><span class="tacc-sc ' + c.level + '">' + SC_GLYPH[c.level] + '</span></td><td style="width:60px"><b>' + esc(c.id) + '</b></td><td>' + esc(c.message) + '</td></tr>'; }).join('') + '</tbody></table>';
+    }
+    function loadSelfcheck() {
+        $('#taccScInfo').textContent = 'Đang tải…';
+        R.post('tgs_acc_selfcheck', { op: 'list' }).then(function (d) {
+            scRows = {};
+            d.rows.forEach(function (r) { scRows[r.blog] = r; });
+            scRender();
+            var dl = d.daily;
+            $('#taccScInfo').textContent = (dl ? 'Lần chạy hằng ngày gần nhất ' + fmtT(dl.at.replace('T', ' ')) + ' UTC: ' + dl.pass + ' xanh · ' + dl.warn + ' vàng · ' + dl.fail + ' đỏ' + (dl.paused ? ' · ' + dl.paused + ' shop tự tạm dừng' : '') + '. ' : 'Chưa có lần chạy hằng ngày. ') + (d.next ? 'Lần kế tiếp ' + d.next + '.' : '');
+        }).catch(function (e) { $('#taccScInfo').textContent = e.message; });
+    }
+    function scRun(blog, confirm) {
+        var tr = $('#taccScTable tr[data-blog="' + blog + '"]');
+        if (tr) { tr.style.opacity = '0.5'; }
+        return R.post('tgs_acc_selfcheck', { op: 'run', blog: blog, confirm: confirm ? 1 : '' }).then(function (d) {
+            scRows[blog] = d.row;
+            scRender();
+            scDetail(blog);
+        }).catch(function (e) { if (tr) { tr.style.opacity = ''; } alert(e.message); });
+    }
+    $('#taccScReload').addEventListener('click', loadSelfcheck);
+    $('#taccScAll').addEventListener('click', function () {
+        var ids = Object.keys(scRows);
+        if (!ids.length || !confirm('Tự kiểm ' + ids.length + ' shop (gọi API kế toán bằng khoá của từng shop, không ghi gì)?')) { return; }
+        var btn = this; btn.disabled = true;
+        ids.reduce(function (p, b) { return p.then(function () { return scRun(b, false); }); }, Promise.resolve()).then(function () { btn.disabled = false; });
+    });
+    app.addEventListener('click', function (ev) {
+        var a = ev.target.closest('.taccScRun, .taccScPick');
+        if (!a) { return; }
+        ev.preventDefault();
+        if (a.classList.contains('taccScPick')) { scDetail(a.dataset.blog); return; }
+        scRun(a.dataset.blog, a.dataset.confirm === '1');
+    });
     app.addEventListener('click', function (ev) {
         var a = ev.target.closest('.taccPause');
         if (!a) { return; }

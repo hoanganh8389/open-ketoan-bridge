@@ -48,6 +48,9 @@ class TGS_Acc_Events
     const STATUS_HOOK = 'tgs_acc_status_pull';
     // [2026-11-21 09:00 PM Johnny Chu - Chu Hoàng Anh] S002-13 — tạm dừng kết nối theo shop (option của blog, giữ khoá; R-OKT-CONN-12).
     const PAUSE_OPTION = 'tgs_acc_paused';
+    // [2026-11-22 02:00 PM Johnny Chu - Chu Hoàng Anh] OKT-SC-2 — giữ hàng chờ của shop tạm dừng quá 7 ngày (K4): bản đồ cấp mạng blog => lúc bắt đầu tạm dừng.
+    const PAUSED_MAP = 'tgs_acc_paused_map';
+    const PAUSED_KEEP_DAYS = 90; // cửa sổ đọc tối đa khi có shop tạm dừng lâu
     const PAUSED_MSG = 'Tạm dừng kết nối của shop — gửi khi bỏ tạm dừng';
 
     /** Hàng đợi của request: "blog|kind" => [ref => op]. */
@@ -504,11 +507,14 @@ class TGS_Acc_Events
 
     /* ------------------------------------------------------------------ gửi lại (cron) */
 
-    /** Trạng thái mới nhất của từng nhóm gửi lỗi trong các tệp retry 7 ngày gần nhất: rid => dòng cuối. */
+    /**
+     * Trạng thái mới nhất của từng nhóm gửi lỗi trong các tệp retry gần nhất: rid => dòng cuối. Cửa sổ 7 ngày; có shop đang
+     * tạm dừng thì kéo dài tới ngày bắt đầu tạm dừng sớm nhất (tối đa 90 ngày) để hàng chờ của nó không rơi khỏi cửa sổ.
+     */
     public static function retry_state()
     {
         $state = [];
-        for ($i = self::RETRY_DAYS - 1; $i >= 0; $i--) {
+        for ($i = self::window_days() - 1; $i >= 0; $i--) {
             $date = wp_date('Y-m-d', time() - $i * DAY_IN_SECONDS);
             foreach (self::read(self::file($date, 'retry')) as $r) {
                 if (!empty($r['rid'])) {
@@ -638,10 +644,41 @@ class TGS_Acc_Events
         return $blog_id > 0 && function_exists('get_blog_option') && (string) get_blog_option($blog_id, self::PAUSE_OPTION, '') !== '';
     }
 
-    /** Tạm dừng: ghi thời điểm (giữ khoá, giữ cấu hình). */
-    public static function pause($blog_id)
+    /** Tạm dừng: ghi thời điểm (giữ khoá, giữ cấu hình). Đang tạm dừng thì giữ mốc cũ (OKT-SC-2: tự tạm dừng lặp lại không xoá dấu vết). */
+    public static function pause($blog_id, $reason = '')
     {
-        return update_blog_option((int) $blog_id, self::PAUSE_OPTION, current_time('mysql'));
+        $blog_id = (int) $blog_id;
+        $since = self::paused_since($blog_id);
+        if ($since === '') {
+            $since = current_time('mysql');
+            update_blog_option($blog_id, self::PAUSE_OPTION, $since);
+        }
+        if ($reason !== '') {
+            update_blog_option($blog_id, 'tgs_acc_paused_reason', (string) $reason);
+        }
+        $map = (array) get_site_option(self::PAUSED_MAP, []);
+        $map[$blog_id] = $since;
+        update_site_option(self::PAUSED_MAP, $map);
+        return true;
+    }
+
+    /** Lý do tạm dừng ('' = admin tạm dừng tay; 'selfcheck: …' = tự kiểm tự tạm dừng). */
+    public static function paused_reason($blog_id)
+    {
+        return (string) get_blog_option((int) $blog_id, 'tgs_acc_paused_reason', '');
+    }
+
+    /** Số ngày tệp retry phải đọc: 7, hoặc tới ngày bắt đầu tạm dừng sớm nhất của các shop đang tạm dừng (tối đa 90). */
+    public static function window_days()
+    {
+        $days = self::RETRY_DAYS;
+        foreach ((array) get_site_option(self::PAUSED_MAP, []) as $since) {
+            $ts = strtotime((string) $since);
+            if ($ts) {
+                $days = max($days, (int) ceil((time() - $ts) / DAY_IN_SECONDS) + 1);
+            }
+        }
+        return min($days, self::PAUSED_KEEP_DAYS);
     }
 
     /**
@@ -650,7 +687,26 @@ class TGS_Acc_Events
      */
     public static function resume($blog_id)
     {
-        return delete_blog_option((int) $blog_id, self::PAUSE_OPTION);
+        $blog_id = (int) $blog_id;
+        // [2026-11-22 02:00 PM Johnny Chu - Chu Hoàng Anh] OKT-SC-2 — chép các nhóm còn mở của shop sang tệp hôm nay (đến hạn ngay):
+        // bỏ tạm dừng thì cửa sổ đọc về 7 ngày, nhóm cũ hơn vẫn còn trong cửa sổ, gửi bù theo thứ tự thời gian gốc (`t` giữ nguyên).
+        $carry = [];
+        foreach (self::retry_state() as $r) {
+            if (empty($r['closed']) && (int) ($r['blog'] ?? 0) === $blog_id) {
+                unset($r['closed'], $r['paused']);
+                $r['next'] = 0;
+                $carry[] = $r;
+            }
+        }
+        if ($carry) {
+            usort($carry, function ($a, $b) { return strcmp((string) ($a['t'] ?? ''), (string) ($b['t'] ?? '')); });
+            self::append(wp_date('Y-m-d'), $carry, 'retry');
+        }
+        $map = (array) get_site_option(self::PAUSED_MAP, []);
+        unset($map[$blog_id]);
+        update_site_option(self::PAUSED_MAP, $map);
+        delete_blog_option($blog_id, 'tgs_acc_paused_reason');
+        return delete_blog_option($blog_id, self::PAUSE_OPTION);
     }
 
     /** Thời điểm bắt đầu tạm dừng ('' = không tạm dừng). */

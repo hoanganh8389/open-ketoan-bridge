@@ -27,7 +27,7 @@ class TGS_Acc_Admin
         add_filter('tgs_shop_dashboard_routes', [__CLASS__, 'register_route']);
         add_filter('tgs_shop_workflow_nav', [__CLASS__, 'add_nav_item'], 45, 2);
         add_action('admin_enqueue_scripts', [__CLASS__, 'enqueue'], 30);
-        foreach (['overview', 'push', 'log', 'runs', 'sample', 'ping', 'save', 'calls', 'lists', 'events', 'events_retry', 'pause'] as $a) {
+        foreach (['overview', 'push', 'log', 'runs', 'sample', 'ping', 'save', 'calls', 'lists', 'events', 'events_retry', 'pause', 'selfcheck'] as $a) {
             add_action('wp_ajax_tgs_acc_' . $a, [__CLASS__, 'ajax_' . $a]);
         }
         // [2026-11-21 10:15 PM Johnny Chu - Chu Hoàng Anh] S002-13 — blog đổi nguồn phiếu thì làm mới danh sách blog nguồn sổ POS.
@@ -379,7 +379,55 @@ class TGS_Acc_Admin
     private static function conn_of($blog_id)
     {
         $q = TGS_Acc_Events::queue_of($blog_id);
-        return ['paused' => (bool) $q['paused'], 'since' => TGS_Acc_Events::paused_since($blog_id), 'queue' => (int) $q['groups'], 'oldest' => (string) $q['oldest']];
+        // [2026-11-22 02:20 PM Johnny Chu - Chu Hoàng Anh] OKT-SC-2 — kèm kết luận tự kiểm gần nhất + lý do tạm dừng.
+        $last = class_exists('TGS_Acc_Selfcheck') ? get_blog_option((int) $blog_id, TGS_Acc_Selfcheck::LAST_OPTION, null) : null;
+        return [
+            'paused' => (bool) $q['paused'], 'since' => TGS_Acc_Events::paused_since($blog_id), 'reason' => TGS_Acc_Events::paused_reason($blog_id),
+            'queue' => (int) $q['groups'], 'oldest' => (string) $q['oldest'],
+            'check' => is_array($last) ? ['verdict' => (string) $last['verdict'], 'at' => (string) $last['at'], 'tenant' => (string) $last['tenant']] : null,
+        ];
+    }
+
+    /**
+     * Tab Tự kiểm (OKT-SC-2, luật I-8): op=list → kết quả gần nhất của mọi shop + lần chạy hằng ngày; op=run → chạy lại một shop
+     * (SC-1…SC-11 qua API bằng khoá của shop; sai / trùng tenant thì tự tạm dừng gửi). Không ghi kế toán, không ghi sổ POS.
+     */
+    public static function ajax_selfcheck()
+    {
+        self::guard();
+        $op = sanitize_key((string) ($_POST['op'] ?? 'list'));
+        if ($op === 'run') {
+            $blog = (int) ($_POST['blog'] ?? 0);
+            if (!self::allowed_blog($blog)) {
+                wp_send_json_error(['message' => 'Shop không thuộc danh sách của Cổng kế toán.']);
+            }
+            $r = TGS_Acc_Selfcheck::enforce(TGS_Acc_Selfcheck::run($blog, ['confirm_tenant' => !empty($_POST['confirm'])]));
+            wp_send_json_success(['row' => self::selfcheck_row($blog, $r)]);
+        }
+        $rows = [];
+        foreach (self::shops() as $s) {
+            $rows[] = self::selfcheck_row($s['blog']);
+        }
+        $next = wp_next_scheduled(TGS_Acc_Selfcheck::DAILY_HOOK);
+        wp_send_json_success(['rows' => $rows, 'daily' => get_site_option(TGS_Acc_Selfcheck::DAILY_OPTION, null), 'next' => $next ? wp_date('Y-m-d H:i', $next) : '']);
+    }
+
+    private static function selfcheck_row($blog, $r = null)
+    {
+        $blog = (int) $blog;
+        $r = $r ?: get_blog_option($blog, TGS_Acc_Selfcheck::LAST_OPTION, null);
+        $shop = null;
+        foreach (self::shops() as $s) {
+            if ($s['blog'] === $blog) {
+                $shop = $s;
+            }
+        }
+        return [
+            'blog' => $blog, 'code' => $shop['code'] ?? ('#' . $blog), 'name' => $shop['name'] ?? '',
+            'key_mode' => TGS_Acc_Config::key_mode($blog), 'confirmed' => (string) get_blog_option($blog, TGS_Acc_Selfcheck::TENANT_OPTION, ''),
+            'paused' => TGS_Acc_Events::paused_since($blog), 'reason' => TGS_Acc_Events::paused_reason($blog),
+            'last' => is_array($r) ? $r : null,
+        ];
     }
 
     /**

@@ -35,7 +35,8 @@ class TGS_Acc_Cli
         $since = TGS_Acc_Events::paused_since($blog_id);
         $warn = [];
         if ($since !== '' && strtotime($since) < strtotime(current_time('mysql')) - TGS_Acc_Events::RETRY_DAYS * DAY_IN_SECONDS) {
-            $warn[] = 'Tạm dừng quá ' . TGS_Acc_Events::RETRY_DAYS . ' ngày: phần hàng chờ cũ hơn không còn trong tệp gửi lại — kéo bù ở trạm ACC14';
+            // [2026-11-22 02:00 PM Johnny Chu - Chu Hoàng Anh] OKT-SC-2 — hàng chờ của shop tạm dừng giữ tới PAUSED_KEEP_DAYS.
+            $warn[] = 'Tạm dừng quá ' . TGS_Acc_Events::RETRY_DAYS . ' ngày: hàng chờ vẫn giữ (tối đa ' . TGS_Acc_Events::PAUSED_KEEP_DAYS . ' ngày), bỏ tạm dừng sớm để gửi bù';
         }
         if ($s['pending_over_24h'] > 0) {
             $warn[] = $s['pending_over_24h'] . ' chứng từ chờ định khoản quá 24 giờ — báo kế toán duyệt ở ACC14';
@@ -289,7 +290,7 @@ class TGS_Acc_Cli
         $all = [];
         $worst = 0;
         foreach ($blogs as $b) {
-            $r = TGS_Acc_Selfcheck::run($b, $opts);
+            $r = TGS_Acc_Selfcheck::enforce(TGS_Acc_Selfcheck::run($b, $opts)); // OKT-SC-2: sai / trùng tenant → tự tạm dừng gửi
             $all[] = $r;
             $worst = max($worst, $r['verdict'] === 'fail' ? 1 : 0);
             if (($assoc['format'] ?? 'table') === 'json') {
