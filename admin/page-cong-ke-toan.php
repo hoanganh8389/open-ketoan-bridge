@@ -37,6 +37,7 @@ $tacc_status = ['live' => ['Đang chạy', 'ok'], 'planned' => ['Dự kiến', '
 
     <nav class="tacc-tabs" role="tablist">
         <button type="button" data-tab="overview" class="on">Tổng quan</button>
+        <button type="button" data-tab="selfcheck">Tự kiểm</button>
         <button type="button" data-tab="events">Sự kiện (tức thời)</button>
         <button type="button" data-tab="push">Gửi chứng từ</button>
         <button type="button" data-tab="log">Nhật ký chứng từ</button>
@@ -200,6 +201,21 @@ $tacc_status = ['live' => ['Đang chạy', 'ok'], 'planned' => ['Dự kiến', '
             <div class="tacc-form"><button type="button" class="tacc-btn" id="taccCallsGo">Tải lại</button><span class="tacc-muted">60 lượt gọi gần nhất (mọi nguồn: nút, lịch, dòng lệnh).</span></div>
             <div class="tacc-tablewrap"><table class="tacc-table" id="taccCallTable"><tbody></tbody></table></div>
         </div>
+    </section>
+
+    <!-- TỰ KIỂM (OKT-SC-2, luật I-8) -->
+    <section class="tacc-panel" data-panel="selfcheck" hidden>
+        <div class="tacc-card">
+            <div class="tacc-card__title">Tự kiểm blog → tenant <span class="tacc-muted">— mỗi shop tự chứng minh qua đúng API, bằng đúng khoá, đọc đúng sổ của shop (luật I-8). Không ghi gì vào kế toán.</span></div>
+            <div class="tacc-form">
+                <button type="button" class="tacc-btn" id="taccScAll">Chạy tự kiểm mọi shop</button>
+                <button type="button" class="tacc-btn ghost" id="taccScReload">Tải lại</button>
+                <span class="tacc-muted" id="taccScInfo"></span>
+            </div>
+            <div class="tacc-tablewrap"><table class="tacc-table" id="taccScTable"><tbody><tr><td class="tacc-muted">Đang tải…</td></tr></tbody></table></div>
+            <div class="tacc-muted" style="margin-top:6px">✓ đạt · ! cảnh báo, vẫn gửi · ✕ đỏ · — chưa chạy. Sai / trùng tenant → tự tạm dừng gửi (quầy vẫn bán). Bấm tên shop để xem từng phép.</div>
+        </div>
+        <div class="tacc-card" id="taccScDetail" hidden></div>
     </section>
 
     <!-- SỰ KIỆN -->

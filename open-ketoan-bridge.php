@@ -93,3 +93,10 @@ TGS_Acc_Events::init();
 
 // Tạo/nâng cấp bảng nhật ký gửi khi cần (rẻ: chỉ so một option).
 add_action('admin_init', ['TGS_Acc_Push_Log', 'maybe_install']);
+
+// [2026-11-22 02:30 PM Johnny Chu - Chu Hoàng Anh] OKT-SC-2 — tắt plugin thì gỡ các lịch của nó (gửi lại, kéo trạng thái, tự kiểm hằng ngày).
+register_deactivation_hook(__FILE__, function () {
+    foreach ([TGS_Acc_Events::CRON_HOOK, TGS_Acc_Events::STATUS_HOOK, TGS_Acc_Selfcheck::DAILY_HOOK] as $hook) {
+        wp_clear_scheduled_hook($hook);
+    }
+});
