@@ -40,10 +40,18 @@ class TGS_Acc_Warehouse_Sync
         add_action('wp_ajax_tgs_acc_sync_warehouses', [__CLASS__, 'ajax_sync']);
     }
 
-    /** Có kết nối kế toán → phân kho do kế toán quản lý (trang quản trị chỉ xem / chọn). */
-    public static function ready()
+    /**
+     * Có kết nối kế toán → phân kho do kế toán quản lý (trang quản trị chỉ xem / chọn).
+     * OKT-H2: theo kết nối của blog đang xem (I-1), không theo cấu hình site chính. Khi có nguồn danh mục theo blog
+     * (tgs_catalog_source, I-2 / D001-19) thì blog `local` phải trả false ở đây và không bị sync() ghi đè phân kho.
+     */
+    public static function ready($blog_id = 0)
     {
-        return class_exists('TGS_Acc_Api_Client') && TGS_Acc_Config::url() !== '' && TGS_Acc_Config::key() !== '';
+        $blog_id = (int) $blog_id ?: (function_exists('get_current_blog_id') ? (int) get_current_blog_id() : 0);
+        if (!class_exists('TGS_Acc_Api_Client')) {
+            return false;
+        }
+        return $blog_id > 0 && method_exists('TGS_Acc_Config', 'ready_for') ? TGS_Acc_Config::ready_for($blog_id) : (TGS_Acc_Config::url() !== '' && TGS_Acc_Config::key() !== '');
     }
 
     /**
@@ -153,20 +161,29 @@ class TGS_Acc_Warehouse_Sync
      */
     public static function sync(array $blog_ids = [])
     {
-        $map = self::branches(true);
-        if (is_wp_error($map)) {
-            return $map;
-        }
+        // [2026-11-22 07:30 PM Johnny Chu - Chu Hoàng Anh] OKT-H2 — mỗi blog tải danh mục kho bằng KẾT NỐI CỦA CHÍNH NÓ (I-1). Trước đây:
+        // tải một lần bằng khoá của ngữ cảnh đang chạy (cron = site chính) rồi chép cho MỌI website → shop nối tenant khác nhận kho
+        // của tenant site chính. Blog chưa có kết nối thì bỏ qua; một blog tải hỏng không chặn blog khác, không ẩn phân kho của nó.
+        $one = count($blog_ids) === 1;
         if (!$blog_ids) {
             $blog_ids = is_multisite() ? array_map('intval', get_sites(['fields' => 'ids', 'number' => 0])) : [get_current_blog_id()];
         }
         global $wpdb;
-        $sum = ['sites' => 0, 'added' => 0, 'updated' => 0, 'hidden' => 0];
+        $sum = ['sites' => 0, 'added' => 0, 'updated' => 0, 'hidden' => 0, 'failed' => 0];
         $now = current_time('mysql');
         foreach ($blog_ids as $blog) {
+            $blog = (int) $blog;
             $branch = TGS_Acc_Source::shop_code($blog);
             $T = $wpdb->get_blog_prefix($blog) . 'local_warehouse_zone';
-            if ($branch === '' || !$wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $T))) {
+            if ($branch === '' || !TGS_Acc_Config::ready_for($blog) || !$wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $T))) {
+                continue;
+            }
+            $map = self::branches(true, $blog);
+            if (is_wp_error($map)) {
+                if ($one) {
+                    return $map;
+                }
+                $sum['failed']++;
                 continue;
             }
             $sum['sites']++;
@@ -202,7 +219,7 @@ class TGS_Acc_Warehouse_Sync
     public static function maybe_sync()
     {
         $blog = get_current_blog_id();
-        if (self::ready() && time() - (int) get_blog_option($blog, self::MAP . '_at', 0) > self::STALE) {
+        if (self::ready($blog) && time() - (int) get_blog_option($blog, self::MAP . '_at', 0) > self::STALE) {
             self::sync([$blog]);
         }
     }

@@ -133,8 +133,28 @@ class TGS_Acc_Selfcheck
         $br = $client->get('/api/v1/branches');
         self::against($c, 'SC-7', 'chi nhánh', $used['branches'], $br);
         $wh = $client->get('/api/v1/warehouses');
-        if (!is_wp_error($wh) && !(array) ($wh['data'] ?? [])) {
-            self::add($c, 'SC-7', 'warn', 'Tenant chưa có kho nào — định khoản giá vốn theo kho chưa kiểm', []);
+        // [2026-11-22 07:30 PM Johnny Chu - Chu Hoàng Anh] OKT-H2 — phiếu POS không ghi kho (zone trống); kế toán ghi dòng kho trống vào
+        // KHO MẶC ĐỊNH của chi nhánh (kho-giu-ho.ts, đã chạy thật: movement + bút toán mang KCN01). Không có kho mặc định → tồn chỉ theo chi nhánh.
+        if (!is_wp_error($wh)) {
+            $rows = (array) ($wh['data'] ?? []);
+            $branch = array_key_exists('branch', $deps) ? (string) $deps['branch'] : (class_exists('TGS_Acc_Source') ? (string) TGS_Acc_Source::shop_code($blog) : '');
+            $def = '';
+            foreach ($rows as $w) {
+                $w = (array) $w;
+                if ((string) ($w['branchCode'] ?? '') === $branch && !empty($w['isDefault']) && ($w['isActive'] ?? true)) {
+                    $def = (string) $w['code'];
+                    break;
+                }
+            }
+            if (!$rows) {
+                self::add($c, 'SC-7', 'warn', 'Tenant chưa có kho nào — phiếu POS không ghi kho, kế toán chỉ theo dõi tồn theo chi nhánh (chưa tách kho, chưa nhận diện kho giữ hộ)', ['branch' => $branch]);
+            } elseif ($branch === '') {
+                self::add($c, 'SC-7', 'warn', 'Blog chưa nối chi nhánh — không biết kho mặc định nào nhận phiếu POS', []);
+            } elseif ($def === '') {
+                self::add($c, 'SC-7', 'warn', "Chi nhánh `{$branch}` chưa có kho mặc định đang dùng — phiếu POS không ghi kho sẽ ghi tồn không có kho", ['branch' => $branch]);
+            } else {
+                self::add($c, 'SC-7', 'pass', "Phiếu POS không ghi kho vào kho mặc định `{$def}` của chi nhánh `{$branch}`", ['branch' => $branch, 'default' => $def]);
+            }
         }
         if ($used['warehouses']) {
             self::against($c, 'SC-7', 'kho', $used['warehouses'], $wh);
