@@ -57,6 +57,7 @@ define('TGS_ACC_BRIDGE_VERSION', '0.5.0');
 define('TGS_ACC_BRIDGE_PATH', plugin_dir_path(__FILE__));
 
 require_once TGS_ACC_BRIDGE_PATH . 'includes/class-tgs-acc-site.php'; // [2026-11-23 02:10 AM Johnny Chu - Chu Hoàng Anh] OKT-TOPO-2 — lớp bao kiểu cài (một site / multisite), nạp trước mọi lớp khác
+require_once TGS_ACC_BRIDGE_PATH . 'includes/class-tgs-acc-profile.php'; // [2026-11-23 06:40 AM Johnny Chu - Chu Hoàng Anh] OKT-TOPO-9 — hồ sơ mô hình triển khai (bizcity · chain · single), khai rõ
 require_once TGS_ACC_BRIDGE_PATH . 'includes/class-tgs-acc-config.php';
 require_once TGS_ACC_BRIDGE_PATH . 'includes/class-tgs-acc-api-client.php';
 require_once TGS_ACC_BRIDGE_PATH . 'includes/class-tgs-acc-source.php';

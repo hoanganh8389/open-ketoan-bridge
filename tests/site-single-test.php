@@ -16,12 +16,16 @@ function update_option($k, $v) { $GLOBALS['OPT'][$k] = $v; return true; }
 function delete_option($k) { unset($GLOBALS['OPT'][$k]); return true; }
 class WP_Error { public $c; function __construct($c = '', $m = '') { $this->c = $c; } function get_error_code() { return $this->c; } }
 require dirname(__DIR__) . '/includes/class-tgs-acc-site.php';
+function get_site_option($k, $d = false) { return get_option($k, $d); }
+function do_action() {}
+require dirname(__DIR__) . '/includes/class-tgs-acc-profile.php';
 
 $ok = 0; $fail = 0;
 function check($name, $cond) { global $ok, $fail; if ($cond) { $ok++; echo "  ok  {$name}\n"; } else { $fail++; echo "SAI: {$name}\n"; } }
 
 check('không có hàm multisite (đúng như WP một site)', !function_exists('get_blog_option') && !function_exists('switch_to_blog') && !function_exists('get_sites'));
-check('is_ms() = false, topology = single', !TGS_Acc_Site::is_ms() && TGS_Acc_Site::topology() === 'single');
+check('is_ms() = false; mô hình tự nhận single', !TGS_Acc_Site::is_ms() && TGS_Acc_Profile::current() === 'single' && TGS_Acc_Profile::source() === 'auto');
+check('một site: chỉ chọn được single; chọn chain → lỗi', TGS_Acc_Profile::allowed() === ['single'] && TGS_Acc_Profile::set('chain') instanceof WP_Error && TGS_Acc_Profile::set('single') === true);
 check('blogs() = [1]', TGS_Acc_Site::blogs() === [1] && TGS_Acc_Site::blogs(false) === [1]);
 check('main() = 1, exists(1), không exists(2)', TGS_Acc_Site::main() === 1 && TGS_Acc_Site::exists(1) && !TGS_Acc_Site::exists(2));
 

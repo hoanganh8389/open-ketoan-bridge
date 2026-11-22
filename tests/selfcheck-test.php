@@ -64,7 +64,7 @@ function deps($client, array $docs, array $status = [], array $queue = [])
 {
     global $NOW;
     return [
-        'client' => $client, 'now' => $NOW, 'map_ready' => $GLOBALS['MAP_READY'] ?? true, 'branch' => $GLOBALS['BRANCH'] ?? 'CN01',
+        'client' => $client, 'now' => $NOW, 'map_ready' => $GLOBALS['MAP_READY'] ?? true, 'branch' => $GLOBALS['BRANCH'] ?? 'CN01', 'profile' => $GLOBALS['PROFILE'] ?? 'bizcity', 'profile_source' => 'constant', // OKT-TOPO-9
         'ids'    => function () use ($docs) { return $docs ? [10, 11] : []; },
         'build'  => function () use ($docs) { return ['docs' => $docs, 'failed' => []]; },
         'status' => function () use ($status) { return $status + ['pending_over_24h' => 0, 'errors' => 0, 'paused' => false]; },
@@ -243,12 +243,20 @@ check('SC-12 đỏ ở đối chiếu → vàng ở tự kiểm', lvl($r, 'SC-12
 $r = TGS_Acc_Selfcheck::run(2, ['no_reconcile' => true], $rc(['warn']) + deps(new FakeClient(tenant_ok()), $GOOD_DOCS));
 check('no_reconcile: không có SC-12', lvl($r, 'SC-12') === '');
 
-// 19. OKT-TOPO-2: SC-0b kiểu cài
+// 19. OKT-TOPO-9: SC-0b mô hình khai rõ; SC-1 theo mô hình
 reset_state();
-$r = TGS_Acc_Selfcheck::run(2, [], ['topology' => 'single'] + deps(new FakeClient(tenant_ok()), $GOOD_DOCS));
-check('SC-0b một site: xanh, nêu kiểu', lvl($r, 'SC-0b') === 'pass' && strpos($r['checks'][0]['message'], 'một site') !== false);
-$r = TGS_Acc_Selfcheck::run(2, [], ['topology' => 'multisite-network-tenant'] + deps(new FakeClient(tenant_ok()), $GOOD_DOCS));
-check('SC-0b chuỗi (một khoá cả mạng): vàng, nêu Q-OKT-3', lvl($r, 'SC-0b') === 'warn' && strpos(msg($r, 'SC-0b'), 'Q-OKT-3') !== false);
+$r = TGS_Acc_Selfcheck::run(2, [], ['profile' => '', 'profile_source' => 'none'] + deps(new FakeClient(tenant_ok()), $GOOD_DOCS));
+check('multisite chưa khai mô hình: SC-0b vàng, chỉ cách khai', lvl($r, 'SC-0b') === 'warn' && strpos(msg($r, 'SC-0b'), 'TGS_ACC_DEPLOYMENT') !== false);
+$r = TGS_Acc_Selfcheck::run(2, [], ['profile' => 'single', 'profile_source' => 'auto'] + deps(new FakeClient(tenant_ok()), $GOOD_DOCS));
+check('một site: SC-0b xanh, tự nhận', lvl($r, 'SC-0b') === 'pass' && strpos($r['checks'][0]['message'], 'tự nhận') !== false);
+$GLOBALS['KEYMODE'][2] = 'legacy';
+$r = TGS_Acc_Selfcheck::run(2, [], ['profile' => 'bizcity'] + deps(new FakeClient(tenant_ok()), $GOOD_DOCS));
+check('bizcity + khoá chung: SC-1 vàng, nêu P-0 khoá riêng từng site', lvl($r, 'SC-1') === 'warn' && strpos(msg($r, 'SC-1'), 'bizcity') !== false);
+$r = TGS_Acc_Selfcheck::run(2, [], ['profile' => 'chain', 'profile_source' => 'option'] + deps(new FakeClient(tenant_ok()), $GOOD_DOCS));
+check('nhiều cửa hàng + khoá chung: SC-1 vàng, nêu khoá cài đặt OKT-SET-1', lvl($r, 'SC-1') === 'warn' && strpos(msg($r, 'SC-1'), 'OKT-SET-1') !== false);
+$GLOBALS['KEYMODE'][2] = 'own';
+$r = TGS_Acc_Selfcheck::run(2, [], ['profile' => 'bizcity'] + deps(new FakeClient(tenant_ok()), $GOOD_DOCS));
+check('bizcity + khoá riêng: SC-1 xanh', lvl($r, 'SC-1') === 'pass');
 
 // 20. OKT-TOPO-8 (P-0, 82 B-8): khoá chung dồn cả mạng vào một tenant → SC-3 VÀNG, enforce KHÔNG tự tạm dừng
 $paused = [];
