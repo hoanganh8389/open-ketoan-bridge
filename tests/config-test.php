@@ -74,6 +74,9 @@ if ($s === 'S6b') {
     define('TGS_KETOAN_API_URL', 'https://khoa-cung.vd');
 }
 
+// [2026-11-23 02:20 AM] OKT-TOPO-2 — lớp bao kiểu cài thật; test này giả multisite (get_blog_option giả).
+if (!function_exists('is_multisite')) { function is_multisite() { return true; } }
+require_once dirname(__DIR__) . '/includes/class-tgs-acc-site.php';
 require dirname(__DIR__) . '/includes/class-tgs-acc-config.php';
 
 echo "── $s\n";
@@ -135,7 +138,11 @@ switch ($s) {
         eq('url() = hằng, bỏ "/" cuối', TGS_Acc_Config::url(), 'http://localhost:8088');
         eq('key_source_for(1) = wp-config', TGS_Acc_Config::key_source_for(1), 'wp-config');
         eq('for_display_blog key_locked', TGS_Acc_Config::for_display_blog(1)['key_locked'], true);
-        eq('save_blog từ chối trên máy một site', is_wp_error(TGS_Acc_Config::save_blog(1, ['key' => 'x'])), true);
+        // OKT-TOPO-2 (open-setup 80 §4): một site = mạng một blog → save_blog(blog hiện tại) ghi cấu hình site; blog khác → từ chối
+        eq('save_blog blog khác trên máy một site → từ chối', is_wp_error(TGS_Acc_Config::save_blog(2, ['key' => 'x'])), true);
+        $r = TGS_Acc_Config::save_blog(1, ['timeout' => '20']);
+        eq('save_blog blog hiện tại trên máy một site → ghi cấu hình site', !is_wp_error($r) && (int) TGS_Acc_Config::get('timeout') === 20, true);
+        eq('khoá hằng wp-config vẫn thắng sau save_blog', TGS_Acc_Config::key_for(1), 'kt_mot_site');
         break;
 
     case 'S6': // blog đè URL riêng (máy chủ kế toán khác)

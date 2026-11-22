@@ -21,6 +21,9 @@ class TGS_Acc_Config {
     static function key_mode($b) { return $GLOBALS['KEYMODE'][(int) $b] ?? 'none'; }
     static function url_for($b) { return 'http://localhost:8098'; }
 }
+// [2026-11-23 02:20 AM] OKT-TOPO-2 — lớp bao kiểu cài thật; test này giả multisite (get_blog_option giả).
+if (!function_exists('is_multisite')) { function is_multisite() { return true; } }
+require_once dirname(__DIR__) . '/includes/class-tgs-acc-site.php';
 require dirname(__DIR__) . '/includes/class-tgs-acc-selfcheck.php';
 
 class FakeClient
@@ -239,6 +242,13 @@ $r = TGS_Acc_Selfcheck::run(2, [], $rc(['warn', 'fail']) + deps(new FakeClient(t
 check('SC-12 đỏ ở đối chiếu → vàng ở tự kiểm', lvl($r, 'SC-12') === 'warn,warn');
 $r = TGS_Acc_Selfcheck::run(2, ['no_reconcile' => true], $rc(['warn']) + deps(new FakeClient(tenant_ok()), $GOOD_DOCS));
 check('no_reconcile: không có SC-12', lvl($r, 'SC-12') === '');
+
+// 19. OKT-TOPO-2: SC-0b kiểu cài
+reset_state();
+$r = TGS_Acc_Selfcheck::run(2, [], ['topology' => 'single'] + deps(new FakeClient(tenant_ok()), $GOOD_DOCS));
+check('SC-0b một site: xanh, nêu kiểu', lvl($r, 'SC-0b') === 'pass' && strpos($r['checks'][0]['message'], 'một site') !== false);
+$r = TGS_Acc_Selfcheck::run(2, [], ['topology' => 'multisite-network-tenant'] + deps(new FakeClient(tenant_ok()), $GOOD_DOCS));
+check('SC-0b chuỗi (một khoá cả mạng): vàng, nêu Q-OKT-3', lvl($r, 'SC-0b') === 'warn' && strpos(msg($r, 'SC-0b'), 'Q-OKT-3') !== false);
 
 echo ($fail ? 'KẾT QUẢ: SAI ' : 'KẾT QUẢ: ĐẠT ') . "{$ok}/" . ($ok + $fail) . "\n";
 exit($fail ? 1 : 0);

@@ -13,6 +13,9 @@ function get_blog_option($b, $k, $d = false) { return $GLOBALS['BLOG'][(int) $b]
 function update_blog_option($b, $k, $v) { $GLOBALS['BLOG'][(int) $b][$k] = $v; return true; }
 function delete_blog_option($b, $k) { unset($GLOBALS['BLOG'][(int) $b][$k]); return true; }
 function apply_filters($t, $v, ...$a) { return $v; }
+// [2026-11-23 02:20 AM] OKT-TOPO-2 — lớp bao kiểu cài thật; test này giả multisite (get_blog_option giả).
+if (!function_exists('is_multisite')) { function is_multisite() { return true; } }
+require_once dirname(__DIR__) . '/includes/class-tgs-acc-site.php';
 require dirname(__DIR__) . '/includes/class-tgs-acc-events.php';
 
 $ok = 0; $fail = 0;

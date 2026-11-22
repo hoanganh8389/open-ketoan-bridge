@@ -105,7 +105,7 @@ class TGS_Acc_Gate
             $srid = $map[$id] ?? '';
             $out[] = [
                 'blogId' => $id,
-                'name' => (string) get_blog_option($id, 'blogname'),
+                'name' => (string) TGS_Acc_Site::opt($id, 'blogname'),
                 'url' => (is_ssl() ? 'https://' : 'http://') . $r['domain'] . $r['path'],
                 'siteCode' => $has_code ? (string) ($r['tgs_site_code'] ?? '') : '',
                 'branchCode' => $srid !== '' ? ($names[$srid] ?? null) : null,
@@ -166,7 +166,7 @@ class TGS_Acc_Gate
         if ($only) {
             return array_values($only);
         }
-        $ids = array_map('intval', get_sites(['fields' => 'ids', 'number' => 0, 'deleted' => 0, 'archived' => 0, 'spam' => 0]));
+        $ids = TGS_Acc_Site::blogs();
         $main = (int) get_main_site_id();
         sort($ids);
         return array_values(array_filter($ids, function ($id) use ($main) { return $id !== $main; }));

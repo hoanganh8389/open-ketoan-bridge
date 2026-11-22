@@ -56,6 +56,7 @@ if (!defined('ABSPATH')) {
 define('TGS_ACC_BRIDGE_VERSION', '0.5.0');
 define('TGS_ACC_BRIDGE_PATH', plugin_dir_path(__FILE__));
 
+require_once TGS_ACC_BRIDGE_PATH . 'includes/class-tgs-acc-site.php'; // [2026-11-23 02:10 AM Johnny Chu - Chu Hoàng Anh] OKT-TOPO-2 — lớp bao kiểu cài (một site / multisite), nạp trước mọi lớp khác
 require_once TGS_ACC_BRIDGE_PATH . 'includes/class-tgs-acc-config.php';
 require_once TGS_ACC_BRIDGE_PATH . 'includes/class-tgs-acc-api-client.php';
 require_once TGS_ACC_BRIDGE_PATH . 'includes/class-tgs-acc-source.php';
@@ -97,6 +98,12 @@ TGS_Acc_Events::init();
 add_action('admin_init', ['TGS_Acc_Push_Log', 'maybe_install']);
 
 // [2026-11-22 02:30 PM Johnny Chu - Chu Hoàng Anh] OKT-SC-2 — tắt plugin thì gỡ các lịch của nó (gửi lại, kéo trạng thái, tự kiểm hằng ngày).
+// [2026-11-23 02:40 AM Johnny Chu - Chu Hoàng Anh] OKT-TOPO-2 — tạo bảng nhật ký gửi lúc kích hoạt (một site / máy mới: trạng thái, tự kiểm đọc bảng này trước lần gửi đầu).
+register_activation_hook(__FILE__, function () {
+    if (class_exists('TGS_Acc_Push_Log')) {
+        TGS_Acc_Push_Log::maybe_install();
+    }
+});
 register_deactivation_hook(__FILE__, function () {
     foreach ([TGS_Acc_Events::CRON_HOOK, TGS_Acc_Events::STATUS_HOOK, TGS_Acc_Selfcheck::DAILY_HOOK] as $hook) {
         wp_clear_scheduled_hook($hook);

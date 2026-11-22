@@ -106,7 +106,7 @@ class TGS_Acc_Events
     /** Trạng thái cầu dao của blog: ['until' => ts, 'fails' => n, 'since' => ts, 'msg' => …] hoặc []. */
     public static function breaker($blog_id)
     {
-        $b = function_exists('get_blog_option') ? get_blog_option((int) $blog_id, self::BREAKER_OPTION, []) : [];
+        $b = TGS_Acc_Site::opt((int) $blog_id, self::BREAKER_OPTION, []);
         return is_array($b) ? $b : [];
     }
 
@@ -121,14 +121,14 @@ class TGS_Acc_Events
         $b = self::breaker($blog_id);
         $fails = (int) ($b['fails'] ?? 0) + 1;
         $sec = min(self::BREAKER_MAX, self::BREAKER_SECONDS * (2 ** min(3, $fails - 1)));
-        update_blog_option((int) $blog_id, self::BREAKER_OPTION, ['until' => time() + $sec, 'fails' => $fails, 'since' => (int) ($b['since'] ?? time()), 'msg' => substr((string) $msg, 0, 200)]);
+        TGS_Acc_Site::set((int) $blog_id, self::BREAKER_OPTION, ['until' => time() + $sec, 'fails' => $fails, 'since' => (int) ($b['since'] ?? time()), 'msg' => substr((string) $msg, 0, 200)]);
     }
 
     /** Gửi tới được kế toán: đóng cầu dao. */
     public static function reset_breaker($blog_id)
     {
         if (self::breaker($blog_id)) {
-            delete_blog_option((int) $blog_id, self::BREAKER_OPTION);
+            TGS_Acc_Site::del((int) $blog_id, self::BREAKER_OPTION);
         }
     }
 
@@ -801,7 +801,7 @@ class TGS_Acc_Events
     public static function paused($blog_id)
     {
         $blog_id = (int) $blog_id;
-        return $blog_id > 0 && function_exists('get_blog_option') && (string) get_blog_option($blog_id, self::PAUSE_OPTION, '') !== '';
+        return $blog_id > 0 && (string) TGS_Acc_Site::opt($blog_id, self::PAUSE_OPTION, '') !== '';
     }
 
     /** Tạm dừng: ghi thời điểm (giữ khoá, giữ cấu hình). Đang tạm dừng thì giữ mốc cũ (OKT-SC-2: tự tạm dừng lặp lại không xoá dấu vết). */
@@ -811,10 +811,10 @@ class TGS_Acc_Events
         $since = self::paused_since($blog_id);
         if ($since === '') {
             $since = current_time('mysql');
-            update_blog_option($blog_id, self::PAUSE_OPTION, $since);
+            TGS_Acc_Site::set($blog_id, self::PAUSE_OPTION, $since);
         }
         if ($reason !== '') {
-            update_blog_option($blog_id, 'tgs_acc_paused_reason', (string) $reason);
+            TGS_Acc_Site::set($blog_id, 'tgs_acc_paused_reason', (string) $reason);
         }
         $map = (array) get_site_option(self::PAUSED_MAP, []);
         $map[$blog_id] = $since;
@@ -825,7 +825,7 @@ class TGS_Acc_Events
     /** Lý do tạm dừng ('' = admin tạm dừng tay; 'selfcheck: …' = tự kiểm tự tạm dừng). */
     public static function paused_reason($blog_id)
     {
-        return (string) get_blog_option((int) $blog_id, 'tgs_acc_paused_reason', '');
+        return (string) TGS_Acc_Site::opt((int) $blog_id, 'tgs_acc_paused_reason', '');
     }
 
     /** Số ngày tệp retry phải đọc: 7, hoặc tới ngày bắt đầu tạm dừng sớm nhất của các shop đang tạm dừng (tối đa 90). */
@@ -865,14 +865,14 @@ class TGS_Acc_Events
         $map = (array) get_site_option(self::PAUSED_MAP, []);
         unset($map[$blog_id]);
         update_site_option(self::PAUSED_MAP, $map);
-        delete_blog_option($blog_id, 'tgs_acc_paused_reason');
-        return delete_blog_option($blog_id, self::PAUSE_OPTION);
+        TGS_Acc_Site::del($blog_id, 'tgs_acc_paused_reason');
+        return TGS_Acc_Site::del($blog_id, self::PAUSE_OPTION);
     }
 
     /** Thời điểm bắt đầu tạm dừng ('' = không tạm dừng). */
     public static function paused_since($blog_id)
     {
-        return function_exists('get_blog_option') ? (string) get_blog_option((int) $blog_id, self::PAUSE_OPTION, '') : '';
+        return (string) TGS_Acc_Site::opt((int) $blog_id, self::PAUSE_OPTION, '');
     }
 
     /**

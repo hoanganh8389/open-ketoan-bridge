@@ -56,6 +56,12 @@ class TGS_Acc_Selfcheck
         $now = (int) ($deps['now'] ?? time());
         $c = [];
 
+        // [2026-11-23 02:40 AM Johnny Chu - Chu Hoàng Anh] OKT-TOPO-2 — SC-0b kiểu cài (open-setup 80 §2): một site · multisite khoá theo blog ·
+        // multisite một khoá mạng ("chuỗi" — chờ Q-OKT-3: SC-3 hiện vẫn theo luật một blog = một tenant).
+        $topo = (string) ($deps['topology'] ?? (class_exists('TGS_Acc_Site') ? TGS_Acc_Site::topology() : 'multisite-blog-tenant'));
+        $topo_name = ['single' => 'WordPress một site', 'multisite-blog-tenant' => 'multisite, khoá theo blog', 'multisite-network-tenant' => 'multisite, một khoá cho cả mạng ("chuỗi")'][$topo] ?? $topo;
+        self::add($c, 'SC-0b', $topo === 'multisite-network-tenant' ? 'warn' : 'pass', 'Kiểu cài: ' . $topo_name . ($topo === 'multisite-network-tenant' ? ' — chưa hỗ trợ chính thức (Q-OKT-3); SC-3 vẫn đỏ khi nhiều blog cùng tenant' : ''), ['topology' => $topo]);
+
         // SC-1 cấu hình
         $mode = class_exists('TGS_Acc_Config') ? TGS_Acc_Config::key_mode($blog) : 'none';
         $url = class_exists('TGS_Acc_Config') ? TGS_Acc_Config::url_for($blog) : '';
@@ -76,9 +82,9 @@ class TGS_Acc_Selfcheck
             return self::finish($blog, '', $c, $now);
         }
         $tenant = (string) ($t['data']['code'] ?? '');
-        $stored = (string) get_blog_option($blog, self::TENANT_OPTION, '');
+        $stored = (string) TGS_Acc_Site::opt($blog, self::TENANT_OPTION, '');
         if ($stored === '' && !empty($opts['confirm_tenant']) && $tenant !== '') {
-            update_blog_option($blog, self::TENANT_OPTION, $tenant);
+            TGS_Acc_Site::set($blog, self::TENANT_OPTION, $tenant);
             $stored = $tenant;
         }
         if ($stored === '') {
@@ -286,7 +292,7 @@ class TGS_Acc_Selfcheck
         $pause ? call_user_func($pause, $r['blog'], $reason) : TGS_Acc_Events::pause($r['blog'], $reason);
         $r['enforced'] = 'paused';
         $r['checks'][] = ['id' => 'SC-2', 'level' => 'fail', 'message' => 'Đã TỰ TẠM DỪNG gửi của blog (quầy vẫn bán, chứng từ xếp hàng). Sửa khoá / tenant, chạy lại tự kiểm, rồi bỏ tạm dừng', 'data' => ['reason' => $reason]];
-        update_blog_option($r['blog'], self::LAST_OPTION, $r);
+        TGS_Acc_Site::set($r['blog'], self::LAST_OPTION, $r);
         return $r;
     }
 
@@ -344,17 +350,18 @@ class TGS_Acc_Selfcheck
     /** Blog có khoá kế toán (riêng hoặc chung) — những cặp phải tự kiểm. */
     public static function blogs_with_key()
     {
-        $ids = function_exists('get_sites') ? get_sites(['fields' => 'ids', 'number' => 0, 'deleted' => 0, 'archived' => 0, 'spam' => 0]) : [];
+        $ids = TGS_Acc_Site::blogs();
         return array_values(array_filter(array_map('intval', $ids), function ($b) { return TGS_Acc_Config::key_mode($b) !== 'none'; }));
     }
 
     /** Lần chạy kế tiếp của các lịch bridge trên SITE CHÍNH: [hook => ts | null]; null = không đọc được (không phải multisite / ngoài WP). */
     public static function cron_next()
     {
-        if (!function_exists('get_main_site_id') || !function_exists('get_blog_option')) {
+        // OKT-TOPO-2: một site cũng có lịch của site chính (blog 1) — đọc qua TGS_Acc_Site; chỉ bỏ qua khi ngoài WordPress.
+        if (!function_exists('get_main_site_id')) {
             return null;
         }
-        $cron = get_blog_option(get_main_site_id(), 'cron', []);
+        $cron = TGS_Acc_Site::opt(TGS_Acc_Site::main(), 'cron', []);
         $out = array_fill_keys(array_keys(self::CRON_HOOKS), null);
         foreach ((array) $cron as $ts => $hooks) {
             foreach ((array) $hooks as $hook => $_) {
@@ -453,7 +460,7 @@ class TGS_Acc_Selfcheck
         $levels = array_column($checks, 'level');
         $verdict = in_array('fail', $levels, true) ? 'fail' : (in_array('warn', $levels, true) ? 'warn' : 'pass');
         $out = ['blog' => $blog, 'tenant' => $tenant, 'at' => gmdate('c', $now), 'verdict' => $verdict, 'checks' => $checks];
-        update_blog_option($blog, self::LAST_OPTION, $out);
+        TGS_Acc_Site::set($blog, self::LAST_OPTION, $out);
         return $out;
     }
 }

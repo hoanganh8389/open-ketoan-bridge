@@ -161,11 +161,11 @@ class TGS_Acc_Admin
         $has_code = (bool) $wpdb->get_var("SHOW COLUMNS FROM {$wpdb->blogs} LIKE 'tgs_site_code'");
         $out = [];
         foreach ($ids as $id) {
-            if (!get_blog_details($id)) {
+            if (!TGS_Acc_Site::exists($id)) {
                 continue;
             }
             $code = $has_code ? (string) $wpdb->get_var($wpdb->prepare("SELECT tgs_site_code FROM {$wpdb->blogs} WHERE blog_id = %d", $id)) : '';
-            $name = trim((string) get_blog_option($id, 'tgs_shop_name', '')) ?: (string) get_blog_option($id, 'blogname', '');
+            $name = trim((string) TGS_Acc_Site::opt($id, 'tgs_shop_name', '')) ?: (string) TGS_Acc_Site::opt($id, 'blogname', '');
             $out[] = ['blog' => (int) $id, 'code' => $code !== '' ? $code : '#' . $id, 'name' => $name];
         }
         return $out;
@@ -184,7 +184,7 @@ class TGS_Acc_Admin
             return array_map('intval', $ids);
         }
         $ids = [];
-        foreach (get_sites(['fields' => 'ids', 'number' => 0, 'deleted' => 0, 'archived' => 0, 'spam' => 0]) as $id) {
+        foreach (TGS_Acc_Site::blogs() as $id) {
             if (TGS_Acc_Source::sale_source((int) $id) === 'pos') {
                 $ids[] = (int) $id;
             }
@@ -380,7 +380,7 @@ class TGS_Acc_Admin
     {
         $q = TGS_Acc_Events::queue_of($blog_id);
         // [2026-11-22 02:20 PM Johnny Chu - Chu Hoàng Anh] OKT-SC-2 — kèm kết luận tự kiểm gần nhất + lý do tạm dừng.
-        $last = class_exists('TGS_Acc_Selfcheck') ? get_blog_option((int) $blog_id, TGS_Acc_Selfcheck::LAST_OPTION, null) : null;
+        $last = class_exists('TGS_Acc_Selfcheck') ? TGS_Acc_Site::opt((int) $blog_id, TGS_Acc_Selfcheck::LAST_OPTION, null) : null;
         return [
             'paused' => (bool) $q['paused'], 'since' => TGS_Acc_Events::paused_since($blog_id), 'reason' => TGS_Acc_Events::paused_reason($blog_id),
             'queue' => (int) $q['groups'], 'oldest' => (string) $q['oldest'],
@@ -435,7 +435,7 @@ class TGS_Acc_Admin
     private static function selfcheck_row($blog, $r = null)
     {
         $blog = (int) $blog;
-        $r = $r ?: get_blog_option($blog, TGS_Acc_Selfcheck::LAST_OPTION, null);
+        $r = $r ?: TGS_Acc_Site::opt($blog, TGS_Acc_Selfcheck::LAST_OPTION, null);
         $shop = null;
         foreach (self::shops() as $s) {
             if ($s['blog'] === $blog) {
@@ -444,7 +444,7 @@ class TGS_Acc_Admin
         }
         return [
             'blog' => $blog, 'code' => $shop['code'] ?? ('#' . $blog), 'name' => $shop['name'] ?? '',
-            'key_mode' => TGS_Acc_Config::key_mode($blog), 'confirmed' => (string) get_blog_option($blog, TGS_Acc_Selfcheck::TENANT_OPTION, ''),
+            'key_mode' => TGS_Acc_Config::key_mode($blog), 'confirmed' => (string) TGS_Acc_Site::opt($blog, TGS_Acc_Selfcheck::TENANT_OPTION, ''),
             'paused' => TGS_Acc_Events::paused_since($blog), 'reason' => TGS_Acc_Events::paused_reason($blog),
             'last' => is_array($r) ? $r : null,
         ];

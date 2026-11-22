@@ -28,6 +28,9 @@ function wp_mkdir_p($d) { return is_dir($d) || mkdir($d, 0777, true); }
 class WP_Error { public $m; public $d; function __construct($c = '', $m = '', $d = null) { $this->m = $m; $this->d = $d; } function get_error_message() { return $this->m; } function get_error_data() { return $this->d; } }
 function is_wp_error($x) { return $x instanceof WP_Error; }
 class TGS_Acc_Config { static function key_mode($b) { return 'own'; } static function url_for($b) { return 'x'; } }
+// [2026-11-23 02:20 AM] OKT-TOPO-2 — lớp bao kiểu cài thật; test này giả multisite (get_blog_option giả).
+if (!function_exists('is_multisite')) { function is_multisite() { return true; } }
+require_once TGS_ACC_BRIDGE_PATH . 'includes/class-tgs-acc-site.php';
 require TGS_ACC_BRIDGE_PATH . 'includes/class-tgs-acc-events.php';
 require TGS_ACC_BRIDGE_PATH . 'includes/class-tgs-acc-selfcheck.php';
 

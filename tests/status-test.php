@@ -105,6 +105,9 @@ class Fake_Client
     }
 }
 
+// [2026-11-23 02:20 AM] OKT-TOPO-2 — lớp bao kiểu cài thật; test này giả multisite (get_blog_option giả).
+if (!function_exists('is_multisite')) { function is_multisite() { return true; } }
+require_once TGS_ACC_BRIDGE_PATH . 'includes/class-tgs-acc-site.php';
 require_once TGS_ACC_BRIDGE_PATH . 'includes/class-tgs-acc-config.php';
 require_once TGS_ACC_BRIDGE_PATH . 'includes/class-tgs-acc-api-client.php';
 require_once TGS_ACC_BRIDGE_PATH . 'includes/class-tgs-acc-source.php';

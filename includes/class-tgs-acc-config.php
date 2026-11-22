@@ -60,7 +60,7 @@ class TGS_Acc_Config
         if ($blog_id <= 0 || !is_multisite()) {
             return [];
         }
-        $v = get_blog_option($blog_id, self::OPTION, []);
+        $v = TGS_Acc_Site::opt($blog_id, self::OPTION, []);
         return is_array($v) ? array_intersect_key($v, array_flip(self::BLOG_FIELDS)) : [];
     }
 
@@ -382,12 +382,16 @@ class TGS_Acc_Config
     {
         $blog_id = (int) $blog_id;
         if (!is_multisite()) {
-            return new WP_Error('not_multisite', 'Máy một site: cấu hình nằm ở trang Cổng kế toán, không có tầng blog');
+            // OKT-TOPO-2: một site = mạng một blog → cấu hình của blog hiện tại LÀ cấu hình của site (một API cho cả ba kiểu cài, 80 §4).
+            if ($blog_id !== TGS_Acc_Site::current()) {
+                return new WP_Error('bad_blog', 'Máy một site chỉ có blog ' . TGS_Acc_Site::current());
+            }
+            return self::save(array_intersect_key($in, array_flip(self::BLOG_FIELDS)));
         }
         if ($blog_id <= 0 || !get_site($blog_id)) {
             return new WP_Error('bad_blog', 'Không có blog ' . $blog_id);
         }
-        $cur = get_blog_option($blog_id, self::OPTION, []);
+        $cur = TGS_Acc_Site::opt($blog_id, self::OPTION, []);
         $s = is_array($cur) ? array_intersect_key($cur, array_flip(self::BLOG_FIELDS)) : [];
         foreach (['url', 'web_url', 'tax_url'] as $f) {
             if (isset($in[$f])) {
@@ -421,7 +425,7 @@ class TGS_Acc_Config
         if (isset($in['realtime'])) {
             $s['realtime'] = $in['realtime'] === '' ? '' : (in_array((string) $in['realtime'], ['0', 'false'], true) ? '0' : '1');
         }
-        update_blog_option($blog_id, self::OPTION, array_filter($s, static function ($v) {
+        TGS_Acc_Site::set($blog_id, self::OPTION, array_filter($s, static function ($v) {
             return $v !== '';
         }));
         return true;

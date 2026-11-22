@@ -93,7 +93,7 @@ class TGS_Acc_Branch_Sync
 
     public static function name_of($blog_id)
     {
-        return trim((string) get_blog_option((int) $blog_id, 'tgs_shop_name', '')) ?: (string) get_blog_option((int) $blog_id, 'blogname', '');
+        return trim((string) TGS_Acc_Site::opt((int) $blog_id, 'tgs_shop_name', '')) ?: (string) TGS_Acc_Site::opt((int) $blog_id, 'blogname', '');
     }
 
     /**
@@ -117,7 +117,7 @@ class TGS_Acc_Branch_Sync
             $have[strtoupper((string) (((array) $b)['code'] ?? ''))] = true;
         }
         if (!$blog_ids) {
-            $blog_ids = is_multisite() ? array_map('intval', get_sites(['fields' => 'ids', 'number' => 0])) : [get_current_blog_id()];
+            $blog_ids = TGS_Acc_Site::blogs(false);
             $main = function_exists('get_main_site_id') ? (int) get_main_site_id() : 1;
             $blog_ids = array_values(array_filter($blog_ids, static function ($b) use ($main) { return $b !== $main; }));
         }
@@ -125,7 +125,7 @@ class TGS_Acc_Branch_Sync
         $out = ['rows' => [], 'created' => 0, 'exists' => 0, 'skipped' => 0, 'errors' => 0];
         $touched = [];
         foreach ($blog_ids as $blog) {
-            if (!get_blog_details($blog)) {
+            if (!TGS_Acc_Site::exists($blog)) {
                 continue;
             }
             $code = self::code_of($blog);
