@@ -284,6 +284,27 @@ class TGS_Acc_Config
         return self::url() !== '' && self::key() !== '';
     }
 
+    // [2026-11-22 05:10 PM Johnny Chu - Chu Hoàng Anh] OKT-I3 — đọc theo blog có phiếu (cron gửi lại chạy ở site chính, không có cấu hình của blog).
+    /** Blog có đủ URL + khoá để gửi sổ nội bộ không (khoá riêng, hoặc khoá chung cũ của mạng). */
+    public static function ready_for($blog_id)
+    {
+        $blog_id = (int) $blog_id;
+        return self::url_for($blog_id) !== '' && (self::key_for($blog_id) !== '' || self::key_legacy() !== '');
+    }
+
+    /** Như get() nhưng của một blog chỉ định: blog → mạng → mặc định. */
+    public static function get_for($blog_id, $name)
+    {
+        if (in_array($name, ['timeout', 'chunk_days', 'realtime'], true)) {
+            $b = self::blog_value((int) $blog_id, $name);
+            if ($b !== '') {
+                return $b;
+            }
+        }
+        $s = self::stored();
+        return $s[$name] ?? (self::defaults()[$name] ?? null);
+    }
+
     /** Nguồn của từng giá trị: 'wp-config' (khoá cứng, không sửa trên trang được) | 'option' | ''. */
     public static function source($name)
     {

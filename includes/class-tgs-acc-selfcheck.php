@@ -184,6 +184,14 @@ class TGS_Acc_Selfcheck
         // Shop đang tạm dừng: hàng chờ được giữ tới 90 ngày (OKT-SC-2) — chỉ đỏ khi sắp quá giới hạn đó.
         $fail_days = !empty($s['paused']) ? (class_exists('TGS_Acc_Events') ? TGS_Acc_Events::PAUSED_KEEP_DAYS : 90) - 1 : self::QUEUE_FAIL_DAYS;
         $lvl = $age >= $fail_days ? 'fail' : (($age >= self::QUEUE_WARN_DAYS || $s['pending_over_24h'] > 0 || $s['errors'] > 0) ? 'warn' : 'pass');
+        // [2026-11-22 05:10 PM Johnny Chu - Chu Hoàng Anh] OKT-I3 — thư mục sự kiện không ghi được = mất hàng chờ trong im lặng.
+        $writable = isset($deps['writable']) ? (bool) $deps['writable'] : (class_exists('TGS_Acc_Events') && method_exists('TGS_Acc_Events', 'writable') ? TGS_Acc_Events::writable() : true);
+        $werr = isset($deps['write_error']) ? $deps['write_error'] : (function_exists('get_site_option') ? get_site_option('tgs_acc_events_write_error', null) : null);
+        if (!$writable) {
+            self::add($c, 'SC-10', 'fail', 'Thư mục sự kiện kế toán không ghi được (quyền thư mục uploads/tgs-acc-events) — sự kiện và hàng chờ bị mất', []);
+        } elseif (is_array($werr) && (int) ($werr['at'] ?? 0) > $now - DAY_IN_SECONDS) {
+            self::add($c, 'SC-10', 'fail', 'Trong 24 giờ có lần không ghi được tệp sự kiện: ' . (string) ($werr['file'] ?? '') . ' — kiểm quyền thư mục rồi gửi lại ngày đó', ['write_error' => $werr]);
+        }
         self::add($c, 'SC-10', $lvl, sprintf('Hàng chờ %d nhóm (cũ nhất %.1f ngày), chờ định khoản > 24 h: %d, lỗi: %d', (int) $q['groups'], $age, (int) $s['pending_over_24h'], (int) $s['errors']), ['queue' => (int) $q['groups'], 'oldest_days' => round($age, 1), 'pending_over_24h' => (int) $s['pending_over_24h'], 'errors' => (int) $s['errors'], 'paused' => !empty($s['paused'])]);
 
         return self::finish($blog, $tenant, $c, $now);

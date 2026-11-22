@@ -425,7 +425,9 @@ class TGS_Acc_Pusher
             if (is_wp_error($res)) {
                 $summary['errors'][] = 'Lô lỗi: ' . $res->get_error_message();
                 foreach ($chunk as $d) {
-                    TGS_Acc_Push_Log::save($blog_id, $d, $meta[$d['docKey']]['version'], '', 'error', $res->get_error_message());
+                    // [2026-11-22 05:30 PM Johnny Chu - Chu Hoàng Anh] OKT-I3 — hỏng ĐƯỜNG TRUYỀN (chưa tới kế toán): vẫn lưu mã băm, để lần gửi bù cùng
+                    // nội dung giữ nguyên phiên bản (I-4); trạng thái 'error' vẫn bảo đảm gửi lại. Đo trên WP thật: trước đây gửi bù lên v2 vô cớ.
+                    TGS_Acc_Push_Log::save($blog_id, $d, $meta[$d['docKey']]['version'], $meta[$d['docKey']]['hash'], 'error', $res->get_error_message());
                 }
                 $summary['error'] += count($chunk);
                 continue;
