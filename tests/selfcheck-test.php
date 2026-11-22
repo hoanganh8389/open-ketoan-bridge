@@ -250,5 +250,22 @@ check('SC-0b một site: xanh, nêu kiểu', lvl($r, 'SC-0b') === 'pass' && strp
 $r = TGS_Acc_Selfcheck::run(2, [], ['topology' => 'multisite-network-tenant'] + deps(new FakeClient(tenant_ok()), $GOOD_DOCS));
 check('SC-0b chuỗi (một khoá cả mạng): vàng, nêu Q-OKT-3', lvl($r, 'SC-0b') === 'warn' && strpos(msg($r, 'SC-0b'), 'Q-OKT-3') !== false);
 
+// 20. OKT-TOPO-8 (P-0, 82 B-8): khoá chung dồn cả mạng vào một tenant → SC-3 VÀNG, enforce KHÔNG tự tạm dừng
+$paused = [];
+$pauser = function ($b, $why) use (&$paused) { $paused[] = (int) $b; };
+reset_state(); $GLOBALS['KEYMODE'] = [2 => 'legacy', 5 => 'legacy', 7 => 'legacy']; $GLOBALS['NET']['tgs_acc_tenant_map'] = [5 => 'shopa', 7 => 'shopa'];
+$r = TGS_Acc_Selfcheck::run(2, ['confirm_tenant' => true], deps(new FakeClient(tenant_ok()), $GOOD_DOCS));
+check('khoá chung cả mạng: SC-3 vàng, nêu 3 site + cách chuyển', lvl($r, 'SC-3') === 'warn' && strpos(msg($r, 'SC-3'), '3 site') !== false && strpos(msg($r, 'SC-3'), 'khoá cài đặt') !== false);
+TGS_Acc_Selfcheck::enforce($r, $pauser);
+check('khoá chung cả mạng: enforce KHÔNG tự tạm dừng', $paused === []);
+reset_state(); $GLOBALS['KEYMODE'] = [2 => 'legacy', 5 => 'own']; $GLOBALS['NET']['tgs_acc_tenant_map'] = [5 => 'shopa'];
+$r = TGS_Acc_Selfcheck::run(2, ['confirm_tenant' => true], deps(new FakeClient(tenant_ok()), $GOOD_DOCS));
+TGS_Acc_Selfcheck::enforce($r, $pauser);
+check('blog khoá chung trùng tenant với blog KHOÁ RIÊNG: SC-3 đỏ + tự tạm dừng (trộn sổ thật)', lvl($r, 'SC-3') === 'fail' && $paused === [2]);
+$paused = [];
+reset_state(); $GLOBALS['KEYMODE'] = [2 => 'own', 5 => 'legacy']; $GLOBALS['NET']['tgs_acc_tenant_map'] = [5 => 'shopa'];
+$r = TGS_Acc_Selfcheck::run(2, ['confirm_tenant' => true], deps(new FakeClient(tenant_ok()), $GOOD_DOCS));
+check('blog khoá riêng trỏ trùng tenant của khoá chung: SC-3 đỏ', lvl($r, 'SC-3') === 'fail');
+
 echo ($fail ? 'KẾT QUẢ: SAI ' : 'KẾT QUẢ: ĐẠT ') . "{$ok}/" . ($ok + $fail) . "\n";
 exit($fail ? 1 : 0);
