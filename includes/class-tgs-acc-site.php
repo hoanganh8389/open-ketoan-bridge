@@ -11,10 +11,7 @@
  * → trả mặc định / false, không đoán (không có blog đó). KHÔNG định nghĩa lại hàm của WordPress (polyfill) — plugin khác
  * (và chính bridge) dùng function_exists('switch_to_blog') để biết có phải multisite.
  *
- * Kiểu cài (topology):
- *   single                    WordPress một site (kiểu 3)
- *   multisite-blog-tenant     multisite, khoá theo blog (kiểu 2, I-1)
- *   multisite-network-tenant  multisite, một khoá mạng cho mọi blog (kiểu 1 "chuỗi" — chờ Q-OKT-3)
+ * Mô hình triển khai (bizcity · chain · single) KHÔNG đoán ở đây — đọc TGS_Acc_Profile (OKT-TOPO-9, hằng / lựa chọn, không theo khoá).
  *
  * @package tgs_accounting_bridge
  */
@@ -139,22 +136,5 @@ class TGS_Acc_Site
     public static function name($blog_id)
     {
         return trim((string) self::opt($blog_id, 'tgs_shop_name', '')) ?: (string) self::opt($blog_id, 'blogname', '');
-    }
-
-    /** single | multisite-blog-tenant | multisite-network-tenant (80 §2). */
-    public static function topology()
-    {
-        if (!self::is_ms()) {
-            return 'single';
-        }
-        if (class_exists('TGS_Acc_Config') && method_exists('TGS_Acc_Config', 'key_legacy') && TGS_Acc_Config::key_legacy() !== '') {
-            foreach (self::blogs() as $b) {
-                if (TGS_Acc_Config::key_mode($b) === 'own') {
-                    return 'multisite-blog-tenant'; // đang chuyển: có blog khoá riêng
-                }
-            }
-            return 'multisite-network-tenant';
-        }
-        return 'multisite-blog-tenant';
     }
 }

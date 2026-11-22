@@ -56,20 +56,33 @@ class TGS_Acc_Selfcheck
         $now = (int) ($deps['now'] ?? time());
         $c = [];
 
-        // [2026-11-23 02:40 AM Johnny Chu - Chu Hoàng Anh] OKT-TOPO-2 — SC-0b kiểu cài (open-setup 80 §2): một site · multisite khoá theo blog ·
-        // multisite một khoá mạng ("chuỗi" — chờ Q-OKT-3: SC-3 hiện vẫn theo luật một blog = một tenant).
-        $topo = (string) ($deps['topology'] ?? (class_exists('TGS_Acc_Site') ? TGS_Acc_Site::topology() : 'multisite-blog-tenant'));
-        $topo_name = ['single' => 'WordPress một site', 'multisite-blog-tenant' => 'multisite, khoá theo blog', 'multisite-network-tenant' => 'multisite, một khoá cho cả mạng ("chuỗi")'][$topo] ?? $topo;
-        self::add($c, 'SC-0b', $topo === 'multisite-network-tenant' ? 'warn' : 'pass', 'Kiểu cài: ' . $topo_name . ($topo === 'multisite-network-tenant' ? ' — chưa hỗ trợ chính thức (Q-OKT-3); SC-3 vẫn đỏ khi nhiều blog cùng tenant' : ''), ['topology' => $topo]);
+        // [2026-11-23 06:40 AM Johnny Chu - Chu Hoàng Anh] OKT-TOPO-9 — SC-0b mô hình triển khai KHAI RÕ (luật tối thượng P-0, open-setup 82 B-1):
+        // hằng TGS_ACC_DEPLOYMENT → lựa chọn ở mạng → một site. Không đoán từ khoá. Multisite chưa khai → vàng.
+        $profile = (string) ($deps['profile'] ?? (class_exists('TGS_Acc_Profile') ? TGS_Acc_Profile::current() : ''));
+        $src = (string) ($deps['profile_source'] ?? (class_exists('TGS_Acc_Profile') ? TGS_Acc_Profile::source() : 'none'));
+        if ($profile === '') {
+            self::add($c, 'SC-0b', 'warn', 'Chưa khai mô hình triển khai — máy chủ bizcity đặt hằng TGS_ACC_DEPLOYMENT = bizcity; tự cài nhiều cửa hàng chọn ở Cổng kế toán → Cài đặt (hoặc wp tgs-acc profile --set=chain)', ['profile' => '', 'source' => $src]);
+        } else {
+            self::add($c, 'SC-0b', 'pass', 'Mô hình: ' . (class_exists('TGS_Acc_Profile') ? TGS_Acc_Profile::label($profile) : $profile) . ' (' . ['constant' => 'hằng máy chủ', 'option' => 'đã chọn ở Cài đặt', 'auto' => 'tự nhận: WordPress một site'][$src] . ')', ['profile' => $profile, 'source' => $src]);
+        }
 
-        // SC-1 cấu hình
+        // SC-1 cấu hình — theo mô hình (đặc tả 75 SC-1; 82 §4 B-5)
         $mode = class_exists('TGS_Acc_Config') ? TGS_Acc_Config::key_mode($blog) : 'none';
         $url = class_exists('TGS_Acc_Config') ? TGS_Acc_Config::url_for($blog) : '';
         if ($mode === 'none' || trim($url) === '') {
-            self::add($c, 'SC-1', 'fail', 'Blog chưa có ' . ($mode === 'none' ? 'khoá' : 'URL') . ' kế toán — không có đường nối để kiểm', ['key_mode' => $mode, 'url' => $url]);
+            self::add($c, 'SC-1', 'fail', 'Blog chưa có ' . ($mode === 'none' ? 'khoá' : 'URL') . ' kế toán — không có đường nối để kiểm', ['key_mode' => $mode, 'url' => $url, 'profile' => $profile]);
             return self::finish($blog, '', $c, $now);
         }
-        self::add($c, 'SC-1', $mode === 'own' ? 'pass' : 'warn', $mode === 'own' ? 'Khoá riêng của blog' : 'Đang dùng khoá chung của mạng (giai đoạn chuyển) — chưa chứng minh được một blog = một tenant', ['key_mode' => $mode, 'url' => $url]);
+        if ($mode === 'own') {
+            $msg = ['bizcity' => 'Khoá riêng của site (bizcity — đúng P-0)', 'chain' => 'Khoá riêng của blog (mô hình nhiều cửa hàng cho phép; khoá cài đặt dùng chung khi open-ketoan có — OKT-SET-1)', 'single' => 'Khoá của site'][$profile] ?? 'Khoá riêng của blog';
+            self::add($c, 'SC-1', 'pass', $msg, ['key_mode' => $mode, 'url' => $url, 'profile' => $profile]);
+        } else {
+            $msg = [
+                'bizcity' => 'bizcity đang dùng khoá chung của mạng (giai đoạn chuyển) — P-0: mỗi site phải có khoá riêng của phần mềm kế toán của nó',
+                'chain'   => 'Khoá chung hôm nay trỏ MỘT tenant cho cả mạng — mô hình nhiều cửa hàng cần khoá cài đặt để mỗi cửa hàng là một tenant (P-0, chờ open-ketoan OKT-SET-1)',
+            ][$profile] ?? 'Đang dùng khoá chung của mạng — chưa chứng minh được một blog = một tenant';
+            self::add($c, 'SC-1', 'warn', $msg, ['key_mode' => $mode, 'url' => $url, 'profile' => $profile]);
+        }
 
         $client = $deps['client'] ?? TGS_Acc_Api_Client::for_blog($blog);
 

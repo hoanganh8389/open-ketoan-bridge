@@ -320,6 +320,31 @@ class TGS_Acc_Cli
         }
     }
 
+    // [2026-11-23 06:50 AM Johnny Chu - Chu Hoàng Anh] OKT-TOPO-9 — xem / đặt mô hình triển khai (luật tối thượng P-0).
+    /**
+     * Mô hình triển khai: bizcity · chain (tự cài nhiều cửa hàng) · single (một site). Hằng TGS_ACC_DEPLOYMENT thắng và khoá lựa chọn.
+     *
+     * ## OPTIONS
+     * [--set=<mo-hinh>]
+     * : bizcity | chain (multisite) · single (WordPress một site, tự nhận)
+     */
+    public function profile($args, $assoc)
+    {
+        if (isset($assoc['set'])) {
+            $r = TGS_Acc_Profile::set((string) $assoc['set']);
+            if (is_wp_error($r)) {
+                WP_CLI::error($r->get_error_message());
+            }
+        }
+        $p = TGS_Acc_Profile::current();
+        WP_CLI::line('Mô hình: ' . ($p !== '' ? $p . ' — ' . TGS_Acc_Profile::label($p) : '(chưa khai)'));
+        WP_CLI::line('Nguồn:   ' . ['constant' => 'hằng TGS_ACC_DEPLOYMENT (khoá)', 'option' => 'đã chọn (option mạng tgs_acc_deployment)', 'auto' => 'tự nhận — WordPress một site', 'none' => 'chưa khai'][TGS_Acc_Profile::source()]);
+        WP_CLI::line('Chọn được: ' . implode(', ', TGS_Acc_Profile::allowed()));
+        if ($p === '') {
+            WP_CLI::warning('Máy chủ bizcity: đặt hằng TGS_ACC_DEPLOYMENT = bizcity trong wp-config.php. Tự cài nhiều cửa hàng: wp tgs-acc profile --set=chain');
+        }
+    }
+
     // [2026-11-22 09:45 PM Johnny Chu - Chu Hoàng Anh] OKT-H4 — đối chiếu WP ↔ kế toán (chỉ đọc).
     /**
      * Đối chiếu chứng từ (thiếu, mồ côi, chờ, lỗi) và tồn theo SKU giữa WP và kế toán của shop. Chỉ đọc.
