@@ -43,7 +43,7 @@ function tenant_ok(array $over = [])
         '/api/v1/posting/payment-methods' => ['data' => [['code' => 'TM'], ['code' => 'CK'], ['code' => 'QR']]],
         '/api/v1/tax-codes'               => ['data' => [['code' => 'R08'], ['code' => 'R10'], ['code' => 'KCT']]],
         '/api/v1/branches'                => ['data' => [['code' => 'CN01']]],
-        '/api/v1/warehouses'              => ['data' => [['code' => 'K01']]],
+        '/api/v1/warehouses'              => ['data' => [['code' => 'K01', 'branchCode' => 'CN01', 'isDefault' => true, 'isActive' => true]]],
         '/api/v1/posting/reasons'         => ['data' => [['code' => 'XBA'], ['code' => 'XTA1.4']]],
         'preflight'                       => ['findings' => []],
     ];
@@ -61,7 +61,7 @@ function deps($client, array $docs, array $status = [], array $queue = [])
 {
     global $NOW;
     return [
-        'client' => $client, 'now' => $NOW, 'map_ready' => $GLOBALS['MAP_READY'] ?? true,
+        'client' => $client, 'now' => $NOW, 'map_ready' => $GLOBALS['MAP_READY'] ?? true, 'branch' => $GLOBALS['BRANCH'] ?? 'CN01',
         'ids'    => function () use ($docs) { return $docs ? [10, 11] : []; },
         'build'  => function () use ($docs) { return ['docs' => $docs, 'failed' => []]; },
         'status' => function () use ($status) { return $status + ['pending_over_24h' => 0, 'errors' => 0, 'paused' => false]; },
@@ -133,7 +133,7 @@ $r = TGS_Acc_Selfcheck::run(2, [], deps(new FakeClient(tenant_ok()), $docs));
 check('phương thức thiếu: SC-5 fail', lvl($r, 'SC-5') === 'fail' && strpos(msg($r, 'SC-5'), 'QR-VTB-CT ×2') !== false);
 check('thuế thiếu: SC-6 fail R04', lvl($r, 'SC-6') === 'fail' && strpos(msg($r, 'SC-6'), 'R04') !== false && strpos(msg($r, 'SC-6'), 'R10') === false);
 check('lý do thiếu: SC-8 fail XTA', lvl($r, 'SC-8') === 'fail' && strpos(msg($r, 'SC-8'), 'XTA ×1') !== false);
-check('chi nhánh có: SC-7 pass', lvl($r, 'SC-7') === 'pass');
+check('chi nhánh có + kho mặc định: SC-7 pass', lvl($r, 'SC-7') === 'pass,pass');
 
 // 7. Tenant 0 kho → SC-7 vàng; dòng có kho lạ → đỏ
 $r = TGS_Acc_Selfcheck::run(2, [], deps(new FakeClient(tenant_ok(['/api/v1/warehouses' => ['data' => []]])), [sale(10, [['taxCode' => 'R10', 'warehouseCode' => '']])]));
@@ -188,6 +188,24 @@ reset_state(); $GLOBALS['MAP_READY'] = false;
 $r = TGS_Acc_Selfcheck::run(2, ['confirm_tenant' => true], deps(new FakeClient(tenant_ok()), $GOOD_DOCS));
 check('không bảng ánh xạ: SC-5 pass + warn', lvl($r, 'SC-5') === 'pass,warn' && $r['verdict'] === 'warn');
 $GLOBALS['MAP_READY'] = true;
+
+// 15. OKT-H2: phiếu POS không ghi kho → kế toán ghi vào kho mặc định của chi nhánh; SC-7 nói rõ kho nào nhận
+reset_state();
+$POS = [sale(10, [['taxCode' => 'R10']]), pay(11, 'TM')];
+$r = TGS_Acc_Selfcheck::run(2, ['confirm_tenant' => true], deps(new FakeClient(tenant_ok()), $POS));
+$m = implode(' | ', array_column(array_filter($r['checks'], function ($c) { return $c['id'] === 'SC-7'; }), 'message'));
+check('H2 có kho mặc định: SC-7 pass, nêu K01', lvl($r, 'SC-7') === 'pass,pass' && strpos($m, '`K01`') !== false);
+$wh2 = ['data' => [['code' => 'K01', 'branchCode' => 'CN01', 'isDefault' => false], ['code' => 'K02', 'branchCode' => 'CN02', 'isDefault' => true]]];
+$r = TGS_Acc_Selfcheck::run(2, [], deps(new FakeClient(tenant_ok(['/api/v1/warehouses' => $wh2])), $POS));
+check('H2 mặc định chỉ ở chi nhánh khác: SC-7 warn', strpos(lvl($r, 'SC-7'), 'warn') !== false && strpos(lvl($r, 'SC-7'), 'fail') === false);
+$r = TGS_Acc_Selfcheck::run(2, [], deps(new FakeClient(tenant_ok(['/api/v1/warehouses' => ['data' => [['code' => 'K01', 'branchCode' => 'CN01', 'isDefault' => true, 'isActive' => false]]]])), $POS));
+check('H2 kho mặc định ngừng dùng: SC-7 warn', strpos(lvl($r, 'SC-7'), 'warn') !== false);
+$GLOBALS['BRANCH'] = '';
+$r = TGS_Acc_Selfcheck::run(2, [], deps(new FakeClient(tenant_ok()), $POS));
+check('H2 blog chưa nối chi nhánh: SC-7 warn', strpos(lvl($r, 'SC-7'), 'warn') !== false);
+unset($GLOBALS['BRANCH']);
+$r = TGS_Acc_Selfcheck::run(2, [], deps(new FakeClient(tenant_ok(['/api/v1/warehouses' => new WP_Error('x', 'hỏng')])), $POS));
+check('H2 không đọc được kho: không báo kho mặc định', strpos(implode(' ', array_column($r['checks'], 'message')), 'kho mặc định') === false);
 
 echo ($fail ? 'KẾT QUẢ: SAI ' : 'KẾT QUẢ: ĐẠT ') . "{$ok}/" . ($ok + $fail) . "\n";
 exit($fail ? 1 : 0);
