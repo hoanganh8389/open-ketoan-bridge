@@ -72,17 +72,82 @@ class TGS_Acc_Events
         add_action(self::CRON_HOOK, [__CLASS__, 'retry']);
         add_action(self::STATUS_HOOK, [__CLASS__, 'pull_status']);
         add_action('init', [__CLASS__, 'schedule']);
+        add_action('wp_ajax_nopriv_' . self::KICK_ACTION, [__CLASS__, 'ajax_kick']); // OKT-I3 — gửi nền
+        add_action('wp_ajax_' . self::KICK_ACTION, [__CLASS__, 'ajax_kick']);
     }
 
     /* ------------------------------------------------------------------ cấu hình */
 
-    /** Gửi tức thời có bật không (vẫn ghi sự kiện khi tắt). */
-    public static function enabled()
+    /**
+     * Gửi tức thời có bật không (vẫn ghi sự kiện khi tắt). $blog_id > 0: theo cấu hình CỦA BLOG đó — cron gửi lại chạy ở site chính,
+     * nơi không có URL / khoá của blog (OKT-I3: trước đây cron đọc site chính → coi như tắt cho mọi blog, hàng chờ không bao giờ gửi bù).
+     */
+    public static function enabled($blog_id = 0)
     {
         if (defined('TGS_ACC_REALTIME') && !TGS_ACC_REALTIME) {
             return false;
         }
+        if ((int) $blog_id > 0) {
+            return (string) TGS_Acc_Config::get_for($blog_id, 'realtime') !== '0' && (TGS_Acc_Config::ready_for($blog_id) || TGS_Acc_Config::tax_ready());
+        }
         return (string) TGS_Acc_Config::get('realtime') !== '0' && (TGS_Acc_Config::ready() || TGS_Acc_Config::tax_ready());
+    }
+
+    // [2026-11-22 05:10 PM Johnny Chu - Chu Hoàng Anh] OKT-I3 — quầy không chờ kế toán trên máy chủ không trả trang sớm được.
+    const DEFER_MSG = 'Gửi nền: máy chủ không trả trang sớm được (không có PHP-FPM / LiteSpeed) — gửi ở request nền, quầy không chờ';
+    const KICK_ACTION = 'tgs_acc_events_kick';
+
+    /**
+     * Request web mà máy chủ KHÔNG trả trang trước được (Apache mod_php…): gửi ngay sẽ bắt thu ngân chờ tới khi kế toán trả lời
+     * (đo trên WP thật: kế toán tắt 16 s, treo 30 s mỗi đơn). Khi đó xếp nhóm vào hàng chờ, đến hạn ngay, rồi đánh thức một
+     * request nền. WP-CLI / cron không ai chờ → gửi ngay như cũ. Tắt bằng filter tgs_acc_events_defer.
+     */
+    public static function defer_send()
+    {
+        $no_early = !function_exists('fastcgi_finish_request') && !function_exists('litespeed_finish_request');
+        $background = PHP_SAPI === 'cli' || (function_exists('wp_doing_cron') && wp_doing_cron());
+        return (bool) apply_filters('tgs_acc_events_defer', $no_early && !$background);
+    }
+
+    /** Khoá của lời đánh thức (site option, sinh một lần). */
+    public static function kick_key()
+    {
+        $k = (string) get_site_option('tgs_acc_kick_key', '');
+        if ($k === '') {
+            $k = wp_generate_password(32, false);
+            update_site_option('tgs_acc_kick_key', $k);
+        }
+        return $k;
+    }
+
+    /** Đánh thức request nền gửi hàng chờ (không chặn: gửi xong yêu cầu là đi tiếp, không đọc trả lời). */
+    public static function kick()
+    {
+        if (!function_exists('wp_remote_post')) {
+            return;
+        }
+        wp_remote_post(admin_url('admin-ajax.php'), ['blocking' => false, 'timeout' => 1, 'sslverify' => false, 'body' => ['action' => self::KICK_ACTION, 'k' => self::kick_key()]]);
+    }
+
+    /** Request nền: kiểm khoá, gửi các nhóm đến hạn (cron mỗi phút vẫn là đường dự phòng). */
+    public static function ajax_kick()
+    {
+        if (!hash_equals(self::kick_key(), (string) wp_unslash($_POST['k'] ?? ''))) {
+            wp_die('', '', ['response' => 403]);
+        }
+        ignore_user_abort(true);
+        @set_time_limit(120);
+        wp_send_json_success(self::retry(false));
+    }
+
+    /** Thư mục sự kiện của hôm nay ghi được không (tự kiểm SC-10). */
+    public static function writable()
+    {
+        $d = dirname(self::file(self::today()));
+        if (!is_dir($d)) {
+            wp_mkdir_p($d);
+        }
+        return is_dir($d) && is_writable($d);
     }
 
     /** Các nơi nhận đang khai: '' = sổ nội bộ, 'tax' = sổ thuế. */
@@ -272,7 +337,14 @@ class TGS_Acc_Events
         foreach ($rows as $r) {
             $lines .= wp_json_encode($r, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n";
         }
-        @file_put_contents($f, $lines, FILE_APPEND | LOCK_EX);
+        // [2026-11-22 05:10 PM Johnny Chu - Chu Hoàng Anh] OKT-I3 — ghi hỏng (vd thư mục do root tạo, web chạy www-data) không được nuốt lặng lẽ:
+        // mất dòng retry = mất hàng chờ. Ghi log + dấu để tự kiểm SC-10 báo đỏ.
+        if (@file_put_contents($f, $lines, FILE_APPEND | LOCK_EX) === false) {
+            error_log('[tgs_acc_events] không ghi được ' . $f);
+            if (function_exists('update_site_option')) {
+                update_site_option('tgs_acc_events_write_error', ['at' => time(), 'file' => $f]);
+            }
+        }
     }
 
     /** Đọc tệp JSONL (bỏ dòng hỏng). $tail_bytes > 0: chỉ đọc phần cuối tệp. */
@@ -358,7 +430,23 @@ class TGS_Acc_Events
         }
         self::append($date, $rows);
         self::$queue = [];
-        if (self::$bulk || !self::enabled()) {
+        if (self::$bulk) {
+            return;
+        }
+        // OKT-I3 — bật / tắt theo blog của từng nhóm (không theo blog của request).
+        $groups = array_values(array_filter(self::group($rows), function ($g) { return self::enabled((int) $g['blog']); }));
+        if (!$groups) {
+            return;
+        }
+        // OKT-I3 — máy chủ không trả trang sớm được: xếp hàng chờ (đến hạn ngay) + đánh thức request nền; quầy không chờ kế toán.
+        if (self::defer_send()) {
+            foreach ($groups as $g) {
+                foreach (self::targets() as $target) {
+                    $paused = self::paused($g['blog']);
+                    self::append($date, [['t' => self::now(), 'rid' => $g['ids'][0] . ($target ? '-' . $target : ''), 'target' => $target, 'blog' => $g['blog'], 'ledger' => $g['ledger'], 'ct' => $g['ct'], 'gt' => $g['gt'], 'n' => 0, 'next' => 0] + ($paused ? ['paused' => 1, 'msg' => self::PAUSED_MSG] : ['msg' => self::DEFER_MSG])], 'retry');
+                }
+            }
+            self::kick();
             return;
         }
 
@@ -371,7 +459,7 @@ class TGS_Acc_Events
         ignore_user_abort(true);
         @set_time_limit(120);
 
-        foreach (self::group($rows) as $g) {
+        foreach ($groups as $g) {
             // [2026-11-21 09:00 PM Johnny Chu - Chu Hoàng Anh] S002-13 — shop đang tạm dừng kết nối: không gửi, xếp vào hàng chờ (không tính lần thử), gửi bù khi bỏ tạm dừng.
             if (self::paused($g['blog'])) {
                 foreach (self::targets() as $target) {
@@ -531,7 +619,8 @@ class TGS_Acc_Events
     /** Cron mỗi phút: gửi lại các nhóm lỗi đến hạn. $force: bỏ qua giãn cách (nút "Gửi lại ngay"). */
     public static function retry($force = false)
     {
-        if (!self::enabled()) {
+        // OKT-I3 — không chặn chung theo site chính (cron chạy ở đó, không có cấu hình của blog); xét từng nhóm theo blog của nó bên dưới.
+        if (defined('TGS_ACC_REALTIME') && !TGS_ACC_REALTIME) {
             return ['retried' => 0, 'ok' => 0];
         }
         // Khoá chống chạy chồng.
@@ -552,6 +641,9 @@ class TGS_Acc_Events
             // [2026-11-21 09:00 PM Johnny Chu - Chu Hoàng Anh] S002-13 — shop tạm dừng: để nguyên trong hàng chờ, không gửi, không tăng số lần thử.
             if (self::paused((int) ($r['blog'] ?? 0))) {
                 continue;
+            }
+            if (!self::enabled((int) ($r['blog'] ?? 0))) {
+                continue; // OKT-I3 — blog tắt gửi tức thời / chưa có khoá: giữ trong hàng chờ
             }
             if (time() - $t0 > 50 || $done >= 50) {
                 break;
