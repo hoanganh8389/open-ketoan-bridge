@@ -100,12 +100,24 @@ class TGS_Acc_Selfcheck
         $map[$blog] = $tenant;
         update_site_option(self::MAP_OPTION, $map);
         $twins = [];
+        $own_twin = false;
         foreach ($map as $b => $code) {
-            if ((int) $b !== $blog && $code !== '' && $code === $tenant && TGS_Acc_Config::key_mode((int) $b) !== 'none') {
+            $m = TGS_Acc_Config::key_mode((int) $b);
+            if ((int) $b !== $blog && $code !== '' && $code === $tenant && $m !== 'none') {
                 $twins[] = (int) $b;
+                $own_twin = $own_twin || $m !== 'legacy';
             }
         }
-        self::add($c, 'SC-3', $twins ? 'fail' : 'pass', $twins ? 'Tenant `' . $tenant . '` cũng đang nối với blog ' . implode(', ', $twins) . ' — sổ hai shop trộn nhau' : 'Không blog nào khác nối tenant này (theo các lần tự kiểm đã chạy)', ['others' => $twins]);
+        // [2026-11-23 06:10 AM Johnny Chu - Chu Hoàng Anh] OKT-TOPO-8 (luật tối thượng P-0, open-setup 82 B-8) — mạng dùng KHOÁ CHUNG hôm nay
+        // (bizcity đang chuyển sang khoá theo blog; selfhost chưa có khoá cài đặt) dồn mọi site vào MỘT tenant. Trước đây SC-3 đỏ →
+        // enforce() TỰ TẠM DỪNG gửi của CẢ MẠNG sau lượt tự kiểm hằng ngày. Blog khoá chung mà mọi blog trùng tenant cũng khoá chung
+        // → vàng (không tự dừng), chỉ cách chuyển. Có blog khoá RIÊNG trỏ trùng tenant → vẫn đỏ + tự dừng (trộn sổ thật).
+        $shared = $twins && TGS_Acc_Config::key_mode($blog) === 'legacy' && !$own_twin;
+        if ($shared) {
+            self::add($c, 'SC-3', 'warn', 'Khoá chung của mạng đang dồn ' . (count($twins) + 1) . ' site vào một tenant `' . $tenant . '` (blog ' . implode(', ', $twins) . ') — mỗi cửa hàng phải là một tenant (P-0): bizcity chuyển sang khoá riêng từng site; tự cài nhiều cửa hàng dùng khoá cài đặt. Không tự tạm dừng', ['others' => $twins, 'shared_key' => true]);
+        } else {
+            self::add($c, 'SC-3', $twins ? 'fail' : 'pass', $twins ? 'Tenant `' . $tenant . '` cũng đang nối với blog ' . implode(', ', $twins) . ' — sổ hai shop trộn nhau' : 'Không blog nào khác nối tenant này (theo các lần tự kiểm đã chạy)', ['others' => $twins]);
+        }
 
         // SC-4 quyền (đọc feed, đọc chứng từ); ghi được kiểm ở SC-9 qua preflight
         $meta = $client->get('/api/v1/catalog/feed/meta', ['since' => gmdate('c', $now)]);
