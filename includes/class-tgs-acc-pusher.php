@@ -379,7 +379,7 @@ class TGS_Acc_Pusher
      */
     public static function send($blog_id, array $docs, array $opts = [])
     {
-        $summary = ['skipped' => 0, 'posted' => 0, 'pending' => 0, 'unchanged' => 0, 'error' => 0, 'errors' => [], 'to_send' => 0];
+        $summary = ['skipped' => 0, 'posted' => 0, 'pending' => 0, 'unchanged' => 0, 'error' => 0, 'errors' => [], 'to_send' => 0, 'transport' => 0]; // [2026-11-22 06:10 PM Johnny Chu - Chu Hoàng Anh] OKT-CAU-DAO — transport: số chứng từ không tới được kế toán (lỗi đường truyền)
         // So nhật ký → quyết định phiên bản, bỏ qua cái không đổi.
         $log = TGS_Acc_Push_Log::find_many(array_column($docs, 'docKey'));
         $to_send = [];
@@ -430,6 +430,7 @@ class TGS_Acc_Pusher
                     TGS_Acc_Push_Log::save($blog_id, $d, $meta[$d['docKey']]['version'], $meta[$d['docKey']]['hash'], 'error', $res->get_error_message());
                 }
                 $summary['error'] += count($chunk);
+                $summary['transport'] += count($chunk);
                 continue;
             }
             foreach ($res['results'] as $r) {

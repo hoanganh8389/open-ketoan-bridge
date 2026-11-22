@@ -94,6 +94,43 @@ class TGS_Acc_Events
     }
 
     // [2026-11-22 05:10 PM Johnny Chu - Chu Hoàng Anh] OKT-I3 — quầy không chờ kế toán trên máy chủ không trả trang sớm được.
+    // [2026-11-22 06:10 PM Johnny Chu - Chu Hoàng Anh] OKT-CAU-DAO — cầu dao theo blog: kế toán không tới được thì không gửi trong request nữa.
+    // PHP-FPM trả trang trước rồi mới gửi, nhưng tiến trình FPM vẫn bị giữ tới khi lời gọi hết giờ (kế toán treo: ~10–30 s mỗi đơn);
+    // giờ cao điểm hết pm.max_children → cả site chậm, kể cả màn bán. Cầu dao mở thì xếp thẳng vào hàng chờ, cron thử lại.
+    const BREAKER_OPTION = 'tgs_acc_breaker';
+    const BREAKER_SECONDS = 120; // lần 1: 2 phút; lặp lại: 4, 8, 15 phút (tối đa)
+    const BREAKER_MAX = 900;
+    const BREAKER_MSG = 'Cầu dao mở: lần gửi gần nhất không tới được kế toán — xếp hàng, cron thử lại khi cầu dao hết hạn';
+
+    /** Trạng thái cầu dao của blog: ['until' => ts, 'fails' => n, 'since' => ts, 'msg' => …] hoặc []. */
+    public static function breaker($blog_id)
+    {
+        $b = function_exists('get_blog_option') ? get_blog_option((int) $blog_id, self::BREAKER_OPTION, []) : [];
+        return is_array($b) ? $b : [];
+    }
+
+    public static function breaker_open($blog_id, $now = null)
+    {
+        return (int) (self::breaker($blog_id)['until'] ?? 0) > ($now ?? time());
+    }
+
+    /** Lỗi đường truyền: mở (hoặc gia hạn) cầu dao, thời gian tăng dần 2 → 4 → 8 → 15 phút. */
+    public static function trip($blog_id, $msg = '')
+    {
+        $b = self::breaker($blog_id);
+        $fails = (int) ($b['fails'] ?? 0) + 1;
+        $sec = min(self::BREAKER_MAX, self::BREAKER_SECONDS * (2 ** min(3, $fails - 1)));
+        update_blog_option((int) $blog_id, self::BREAKER_OPTION, ['until' => time() + $sec, 'fails' => $fails, 'since' => (int) ($b['since'] ?? time()), 'msg' => substr((string) $msg, 0, 200)]);
+    }
+
+    /** Gửi tới được kế toán: đóng cầu dao. */
+    public static function reset_breaker($blog_id)
+    {
+        if (self::breaker($blog_id)) {
+            delete_blog_option((int) $blog_id, self::BREAKER_OPTION);
+        }
+    }
+
     const DEFER_MSG = 'Gửi nền: máy chủ không trả trang sớm được (không có PHP-FPM / LiteSpeed) — gửi ở request nền, quầy không chờ';
     const KICK_ACTION = 'tgs_acc_events_kick';
 
@@ -443,7 +480,8 @@ class TGS_Acc_Events
             foreach ($groups as $g) {
                 foreach (self::targets() as $target) {
                     $paused = self::paused($g['blog']);
-                    self::append($date, [['t' => self::now(), 'rid' => $g['ids'][0] . ($target ? '-' . $target : ''), 'target' => $target, 'blog' => $g['blog'], 'ledger' => $g['ledger'], 'ct' => $g['ct'], 'gt' => $g['gt'], 'n' => 0, 'next' => 0] + ($paused ? ['paused' => 1, 'msg' => self::PAUSED_MSG] : ['msg' => self::DEFER_MSG])], 'retry');
+                    $open = !$paused && self::breaker_open($g['blog']);
+                    self::append($date, [['t' => self::now(), 'rid' => $g['ids'][0] . ($target ? '-' . $target : ''), 'target' => $target, 'blog' => $g['blog'], 'ledger' => $g['ledger'], 'ct' => $g['ct'], 'gt' => $g['gt'], 'n' => 0, 'next' => $open ? (int) self::breaker($g['blog'])['until'] : 0] + ($paused ? ['paused' => 1, 'msg' => self::PAUSED_MSG] : ['msg' => $open ? self::BREAKER_MSG : self::DEFER_MSG])], 'retry');
                 }
             }
             self::kick();
@@ -467,10 +505,21 @@ class TGS_Acc_Events
                 }
                 continue;
             }
+            // OKT-CAU-DAO — cầu dao mở: không gửi (không giữ tiến trình FPM chờ kế toán), xếp hàng tới lúc cầu dao hết hạn.
+            if (self::breaker_open($g['blog'])) {
+                $until = (int) self::breaker($g['blog'])['until'];
+                foreach (self::targets() as $target) {
+                    self::append($date, [['t' => self::now(), 'rid' => $g['ids'][0] . ($target ? '-' . $target : ''), 'target' => $target, 'blog' => $g['blog'], 'ledger' => $g['ledger'], 'ct' => $g['ct'], 'gt' => $g['gt'], 'n' => 0, 'next' => $until, 'msg' => self::BREAKER_MSG]], 'retry');
+                }
+                continue;
+            }
             // Dựng MỘT lần, gửi từng nơi nhận (sổ nội bộ, sổ thuế).
             $built = self::build($g['blog'], $g['ledger'], $g['ct'], $g['gt']);
             foreach (self::targets() as $target) {
                 $r = self::deliver($g['blog'], $built, $target);
+                if ($target === '') {
+                    !empty($r['ok']) ? self::reset_breaker($g['blog']) : (!empty($r['transport']) ? self::trip($g['blog'], $r['msg']) : null);
+                }
                 self::append($date, [['t' => self::now(), 'res' => $r['ok'] ? 'ok' : 'error', 'target' => $target ?: 'noi-bo', 'blog' => $g['blog'], 'ids' => $g['ids']] + $r]);
                 if (!$r['ok']) {
                     self::append($date, [['t' => self::now(), 'rid' => $g['ids'][0] . ($target ? '-' . $target : ''), 'target' => $target, 'blog' => $g['blog'], 'ledger' => $g['ledger'], 'ct' => $g['ct'], 'gt' => $g['gt'], 'n' => 1, 'next' => time() + 60, 'msg' => $r['msg']]], 'retry');
@@ -575,6 +624,7 @@ class TGS_Acc_Events
             $errors = array_merge($s['errors'], $c['errors']);
             return [
                 'ok'        => (int) $s['error'] === 0 && !$c['errors'],
+                'transport' => (int) ($s['transport'] ?? 0) > 0, // OKT-CAU-DAO
                 'sent'      => (int) $s['posted'] + (int) $s['pending'],
                 'unchanged' => (int) $s['unchanged'] + (int) $s['skipped'],
                 'cancelled' => (int) $c['cancelled'],
@@ -645,11 +695,17 @@ class TGS_Acc_Events
             if (!self::enabled((int) ($r['blog'] ?? 0))) {
                 continue; // OKT-I3 — blog tắt gửi tức thời / chưa có khoá: giữ trong hàng chờ
             }
+            if (!$force && (string) ($r['target'] ?? '') === '' && self::breaker_open((int) ($r['blog'] ?? 0))) {
+                continue; // OKT-CAU-DAO — cầu dao mở: không thử nhóm nào của blog tới khi hết hạn (một lần hết giờ là đủ)
+            }
             if (time() - $t0 > 50 || $done >= 50) {
                 break;
             }
             $res = self::process((int) $r['blog'], (array) ($r['ledger'] ?? []), (array) ($r['ct'] ?? []), (string) ($r['target'] ?? ''), (array) ($r['gt'] ?? []));
             $done++;
+            if ((string) ($r['target'] ?? '') === '') {
+                !empty($res['ok']) ? self::reset_breaker((int) $r['blog']) : (!empty($res['transport']) ? self::trip((int) $r['blog'], $res['msg']) : null);
+            }
             $n = (int) ($r['n'] ?? 1) + 1;
             if ($res['ok']) {
                 $ok++;
@@ -712,8 +768,8 @@ class TGS_Acc_Events
         try {
             TGS_Acc_Push_Log::use_consumer('');
             foreach (TGS_Acc_Push_Log::blogs_with_pending() as $blog_id) {
-                if (self::paused($blog_id)) {
-                    continue; // S002-13 — tạm dừng: không gọi kế toán
+                if (self::paused($blog_id) || self::breaker_open($blog_id)) {
+                    continue; // S002-13 tạm dừng / OKT-CAU-DAO cầu dao mở: không gọi kế toán
                 }
                 $client = TGS_Acc_Api_Client::for_blog($blog_id);
                 if (!$client->ready()) {

@@ -184,6 +184,11 @@ class TGS_Acc_Selfcheck
         // Shop đang tạm dừng: hàng chờ được giữ tới 90 ngày (OKT-SC-2) — chỉ đỏ khi sắp quá giới hạn đó.
         $fail_days = !empty($s['paused']) ? (class_exists('TGS_Acc_Events') ? TGS_Acc_Events::PAUSED_KEEP_DAYS : 90) - 1 : self::QUEUE_FAIL_DAYS;
         $lvl = $age >= $fail_days ? 'fail' : (($age >= self::QUEUE_WARN_DAYS || $s['pending_over_24h'] > 0 || $s['errors'] > 0) ? 'warn' : 'pass');
+        // [2026-11-22 06:10 PM Johnny Chu - Chu Hoàng Anh] OKT-CAU-DAO — cầu dao đang mở: báo vàng (hàng chờ đang giữ, cron thử lại).
+        $br = isset($deps['breaker']) ? $deps['breaker'] : (class_exists('TGS_Acc_Events') && method_exists('TGS_Acc_Events', 'breaker_open') && TGS_Acc_Events::breaker_open($blog) ? TGS_Acc_Events::breaker($blog) : null);
+        if (is_array($br) && $br) {
+            self::add($c, 'SC-10', 'warn', 'Cầu dao mở (lần ' . (int) ($br['fails'] ?? 1) . '): lần gửi gần nhất không tới được kế toán — ' . (string) ($br['msg'] ?? '') . '; đơn xếp hàng', ['breaker' => $br]);
+        }
         // [2026-11-22 05:10 PM Johnny Chu - Chu Hoàng Anh] OKT-I3 — thư mục sự kiện không ghi được = mất hàng chờ trong im lặng.
         $writable = isset($deps['writable']) ? (bool) $deps['writable'] : (class_exists('TGS_Acc_Events') && method_exists('TGS_Acc_Events', 'writable') ? TGS_Acc_Events::writable() : true);
         $werr = isset($deps['write_error']) ? $deps['write_error'] : (function_exists('get_site_option') ? get_site_option('tgs_acc_events_write_error', null) : null);
