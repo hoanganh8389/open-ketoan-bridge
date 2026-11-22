@@ -2,15 +2,15 @@
 /**
  * Lệnh WP-CLI của cầu nối kế toán (chạy theo từng shop):
  *
- *   wp tgs-acc status    --blog=<id>                    năm số của một shop: hàng chờ · chờ định khoản · chờ > 24 giờ ·
+ *   wp tgs-acc status    --shop=<id>                    năm số của một shop: hàng chờ · chờ định khoản · chờ > 24 giờ ·
  *                                                       lỗi · lần gửi cuối; kèm nguồn phiếu, mã chi nhánh, tạm dừng
- *   wp tgs-acc preflight --blog=<id> --ledger=<id>     dựng chứng từ của một phiếu rồi KIỂM THỬ ở kế toán
+ *   wp tgs-acc preflight --shop=<id> --ledger=<id>     dựng chứng từ của một phiếu rồi KIỂM THỬ ở kế toán
  *                       [--no-post] [--json]            (POST /api/v1/intake/preflight — không ghi sự việc, không vào sổ)
- *   wp tgs-acc pause     --blog=<id>                    tạm dừng kết nối của shop (giữ khoá; vẫn ghi sự kiện, không gửi)
- *   wp tgs-acc resume    --blog=<id> [--now]            bỏ tạm dừng; --now: gửi bù hàng chờ ngay (không chờ cron)
- *   wp tgs-acc selfcheck --blog=<id> | --all            tự kiểm cặp blog → tenant qua API (SC-1…SC-11, luật I-8)
+ *   wp tgs-acc pause     --shop=<id>                    tạm dừng kết nối của shop (giữ khoá; vẫn ghi sự kiện, không gửi)
+ *   wp tgs-acc resume    --shop=<id> [--now]            bỏ tạm dừng; --now: gửi bù hàng chờ ngay (không chờ cron)
+ *   wp tgs-acc selfcheck --shop=<id> | --all            tự kiểm cặp blog → tenant qua API (SC-1…SC-11, luật I-8)
  *                       [--confirm-tenant] [--samples=5] [--format=table|json]   thoát 0 = xanh / vàng, 1 = có đỏ
- *   wp tgs-acc map       --blog=<id> [--auto] [--set=<kind>:<mã bridge>=<mã tenant>]…   bảng ánh xạ mã (S001-MD3)
+ *   wp tgs-acc map       --shop=<id> [--auto] [--set=<kind>:<mã bridge>=<mã tenant>]…   bảng ánh xạ mã (S001-MD3)
  *
  * Lớp chỉ đọc sổ POS (qua TGS_Acc_Pusher / TGS_Acc_Source). Không ghi sổ POS (ADR-OKT-1 I-0).
  *
@@ -94,7 +94,7 @@ class TGS_Acc_Cli
      * Năm số của một shop.
      *
      * ## OPTIONS
-     * --blog=<id>
+     * --shop=<id>
      * : Shop (blog id).
      * [--json]
      * : In JSON.
@@ -121,7 +121,7 @@ class TGS_Acc_Cli
      * Kiểm thử chứng từ của một phiếu ở kế toán (không ghi sổ).
      *
      * ## OPTIONS
-     * --blog=<id>
+     * --shop=<id>
      * : Shop.
      * --ledger=<id>
      * : local_ledger_id của phiếu (bán, hoàn, thu…).
@@ -172,21 +172,21 @@ class TGS_Acc_Cli
      * Tạm dừng kết nối của shop.
      *
      * ## OPTIONS
-     * --blog=<id>
+     * --shop=<id>
      * : Shop.
      */
     public function pause($args, $assoc)
     {
         $blog = self::blog_arg($assoc);
         TGS_Acc_Events::pause($blog);
-        WP_CLI::success("Đã tạm dừng kết nối của shop #{$blog}: vẫn ghi sự kiện, không gửi, không thử lại. Bỏ: wp tgs-acc resume --blog={$blog}");
+        WP_CLI::success("Đã tạm dừng kết nối của shop #{$blog}: vẫn ghi sự kiện, không gửi, không thử lại. Bỏ: wp tgs-acc resume --shop={$blog}");
     }
 
     /**
      * Bỏ tạm dừng kết nối của shop.
      *
      * ## OPTIONS
-     * --blog=<id>
+     * --shop=<id>
      * : Shop.
      * [--now]
      * : Gửi bù hàng chờ ngay.
@@ -209,7 +209,7 @@ class TGS_Acc_Cli
      * Bảng ánh xạ mã bridge sinh → mã ở tenant (phương thức, lý do, thuế) của một shop.
      *
      * ## OPTIONS
-     * --blog=<id>
+     * --shop=<id>
      * : Shop.
      * [--auto]
      * : Tự dựng từ các phiếu gần nhất + danh mục tenant (không ghi đè dòng đã xác nhận).
@@ -268,7 +268,7 @@ class TGS_Acc_Cli
      * Tự kiểm cặp blog → tenant qua API (SC-1…SC-11). Không ghi kế toán (preflight save:false), không ghi sổ POS.
      *
      * ## OPTIONS
-     * [--blog=<id>]
+     * [--shop=<id>]
      * : Shop.
      * [--all]
      * : Mọi blog có khoá (riêng hoặc chung).
@@ -315,9 +315,10 @@ class TGS_Acc_Cli
 
     private static function blog_arg($assoc)
     {
-        $b = (int) ($assoc['blog'] ?? 0);
+        // [2026-11-22 04:00 PM Johnny Chu - Chu Hoàng Anh] WP-CLI giữ --blog làm tham số chung (tên cũ của --url) nên --blog=N không tới lệnh: dùng --shop=N.
+        $b = (int) ($assoc['shop'] ?? ($assoc['blog'] ?? 0));
         if ($b <= 0) {
-            WP_CLI::error('Cần --blog=<blog_id>');
+            WP_CLI::error('Cần --shop=<blog_id>');
         }
         return $b;
     }

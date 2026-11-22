@@ -38,6 +38,7 @@ $tacc_status = ['live' => ['Đang chạy', 'ok'], 'planned' => ['Dự kiến', '
     <nav class="tacc-tabs" role="tablist">
         <button type="button" data-tab="overview" class="on">Tổng quan</button>
         <button type="button" data-tab="selfcheck">Tự kiểm</button>
+        <button type="button" data-tab="trace">Trace</button>
         <button type="button" data-tab="events">Sự kiện (tức thời)</button>
         <button type="button" data-tab="push">Gửi chứng từ</button>
         <button type="button" data-tab="log">Nhật ký chứng từ</button>
@@ -200,6 +201,22 @@ $tacc_status = ['live' => ['Đang chạy', 'ok'], 'planned' => ['Dự kiến', '
         <div class="tacc-card">
             <div class="tacc-form"><button type="button" class="tacc-btn" id="taccCallsGo">Tải lại</button><span class="tacc-muted">60 lượt gọi gần nhất (mọi nguồn: nút, lịch, dòng lệnh).</span></div>
             <div class="tacc-tablewrap"><table class="tacc-table" id="taccCallTable"><tbody></tbody></table></div>
+        </div>
+    </section>
+
+    <!-- TRACE (OKT-TRACE) -->
+    <section class="tacc-panel" data-panel="trace" hidden>
+        <div class="tacc-card">
+            <div class="tacc-card__title">Trace một phiếu <span class="tacc-muted">— sổ POS → sự kiện → hàng chờ → chứng từ (trước / sau ánh xạ mã) → nhật ký gửi → kế toán. Chỉ đọc, không gửi.</span></div>
+            <div class="tacc-form">
+                <label>Shop <select id="taccTrBlog"></select></label>
+                <label>Mã chứng từ hoặc id phiếu <input type="text" id="taccTrRef" placeholder="btsoft:2:sale:123 hoặc 123" style="min-width:260px"></label>
+                <label>Sự kiện <select id="taccTrDays"><option value="7">7 ngày</option><option value="30">30 ngày</option><option value="90">90 ngày</option></select></label>
+                <label class="tacc-check"><input type="checkbox" id="taccTrRemote"> Hỏi trạng thái ở kế toán</label>
+                <button type="button" class="tacc-btn" id="taccTrGo">Trace</button>
+                <span class="tacc-muted" id="taccTrInfo"></span>
+            </div>
+            <div id="taccTrOut"></div>
         </div>
     </section>
 

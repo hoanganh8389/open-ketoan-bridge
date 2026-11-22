@@ -27,7 +27,7 @@ class TGS_Acc_Admin
         add_filter('tgs_shop_dashboard_routes', [__CLASS__, 'register_route']);
         add_filter('tgs_shop_workflow_nav', [__CLASS__, 'add_nav_item'], 45, 2);
         add_action('admin_enqueue_scripts', [__CLASS__, 'enqueue'], 30);
-        foreach (['overview', 'push', 'log', 'runs', 'sample', 'ping', 'save', 'calls', 'lists', 'events', 'events_retry', 'pause', 'selfcheck'] as $a) {
+        foreach (['overview', 'push', 'log', 'runs', 'sample', 'ping', 'save', 'calls', 'lists', 'events', 'events_retry', 'pause', 'selfcheck', 'trace'] as $a) {
             add_action('wp_ajax_tgs_acc_' . $a, [__CLASS__, 'ajax_' . $a]);
         }
         // [2026-11-21 10:15 PM Johnny Chu - Chu Hoàng Anh] S002-13 — blog đổi nguồn phiếu thì làm mới danh sách blog nguồn sổ POS.
@@ -410,6 +410,26 @@ class TGS_Acc_Admin
         }
         $next = wp_next_scheduled(TGS_Acc_Selfcheck::DAILY_HOOK);
         wp_send_json_success(['rows' => $rows, 'daily' => get_site_option(TGS_Acc_Selfcheck::DAILY_OPTION, null), 'next' => $next ? wp_date('Y-m-d H:i', $next) : '']);
+    }
+
+    // [2026-11-22 03:10 PM Johnny Chu - Chu Hoàng Anh] OKT-TRACE — tab Trace: đường đi của một phiếu / chứng từ (chỉ đọc).
+    public static function ajax_trace()
+    {
+        self::guard();
+        $blog = (int) ($_POST['blog'] ?? 0);
+        $ref = sanitize_text_field(wp_unslash((string) ($_POST['ref'] ?? '')));
+        $p = TGS_Acc_Trace::parse($blog, $ref);
+        if (!$p) {
+            wp_send_json_error(['message' => 'Nhập mã chứng từ btsoft:{blog}:{loại}:{id} hoặc id phiếu của shop đã chọn.']);
+        }
+        if (!self::allowed_blog($p['blog'])) {
+            wp_send_json_error(['message' => 'Shop không thuộc danh sách của Cổng kế toán.']);
+        }
+        $r = TGS_Acc_Trace::run($p['blog'], $ref, ['remote' => !empty($_POST['remote']), 'days' => (int) ($_POST['days'] ?? 7)]);
+        if (is_wp_error($r)) {
+            wp_send_json_error(['message' => $r->get_error_message()]);
+        }
+        wp_send_json_success($r);
     }
 
     private static function selfcheck_row($blog, $r = null)
