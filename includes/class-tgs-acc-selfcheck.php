@@ -10,9 +10,9 @@
  *   SC-1  cấu hình (khoá riêng, URL)          SC-7  chi nhánh + kho
  *   SC-2  danh tính tenant (/tenant)          SC-8  lý do xuất / nhập
  *   SC-3  một tenant ↔ một blog               SC-9  chứng từ mẫu thật → preflight
- *   SC-4  quyền của khoá                      SC-10 hàng chờ + trạng thái
+ *   SC-4  quyền của khoá                      SC-10 hàng chờ + trạng thái + lịch cron của site chính (OKT-MT-3)
  *   SC-5  phương thức thanh toán              SC-11 đồng hồ
- *   SC-6  mã thuế
+ *   SC-6  mã thuế                             SC-12 đối chiếu chứng từ + tồn (OKT-H4, TGS_Acc_Reconcile; tối đa vàng)
  *
  * @package tgs_accounting_bridge
  */
@@ -35,6 +35,11 @@ class TGS_Acc_Selfcheck
     const CLOCK_FAIL = 300;
     // [2026-11-22 02:00 PM Johnny Chu - Chu Hoàng Anh] OKT-SC-2 — cron hằng ngày 02:30 (giờ site), tổng kết cấp mạng.
     const DAILY_HOOK = 'tgs_acc_selfcheck_daily';
+    /** OKT-MT-3: lịch của site chính → giây quá hạn còn chấp nhận (chu kỳ + đệm). */
+    const CRON_HOOKS = ['tgs_acc_events_retry' => 900, 'tgs_acc_status_pull' => 1800, 'tgs_acc_selfcheck_daily' => 2 * 86400];
+    const CRON_FAIL = 6 * 3600;
+    const RECONCILE_DAYS = 7;
+    const RECONCILE_SKUS = 50;
     const DAILY_OPTION = 'tgs_acc_selfcheck_daily';
     const DAILY_AT = '02:30';
 
@@ -225,6 +230,33 @@ class TGS_Acc_Selfcheck
         }
         self::add($c, 'SC-10', $lvl, sprintf('Hàng chờ %d nhóm (cũ nhất %.1f ngày), chờ định khoản > 24 h: %d, lỗi: %d', (int) $q['groups'], $age, (int) $s['pending_over_24h'], (int) $s['errors']), ['queue' => (int) $q['groups'], 'oldest_days' => round($age, 1), 'pending_over_24h' => (int) $s['pending_over_24h'], 'errors' => (int) $s['errors'], 'paused' => !empty($s['paused'])]);
 
+        // [2026-11-22 09:45 PM Johnny Chu - Chu Hoàng Anh] OKT-MT-3 — gửi lại / kéo trạng thái / tự kiểm hằng ngày là lịch WP-Cron của SITE CHÍNH.
+        // DISABLE_WP_CRON mà máy chủ không có cron hệ thống → cả ba đứng im, không ai báo (đo thật ở ma trận 65: quá hạn nhiều giờ).
+        $cron = array_key_exists('cron', $deps) ? $deps['cron'] : self::cron_next();
+        if (is_array($cron)) {
+            $late = [];
+            foreach (self::CRON_HOOKS as $hook => $grace) {
+                $t = $cron[$hook] ?? null;
+                if (!$t) {
+                    $late[$hook] = 'chưa lên lịch';
+                } elseif ($now - (int) $t > $grace) {
+                    $late[$hook] = 'quá hạn ' . round(($now - (int) $t) / 60) . ' phút';
+                }
+            }
+            if ($late) {
+                $worst = max(array_map(function ($h) use ($cron, $now) { return empty($cron[$h]) ? PHP_INT_MAX : $now - (int) $cron[$h]; }, array_keys($late)));
+                self::add($c, 'SC-10', $worst > self::CRON_FAIL ? 'fail' : 'warn', 'Lịch của site chính không chạy: ' . implode('; ', array_map(function ($h, $m) { return "{$h} {$m}"; }, array_keys($late), $late)) . ' — máy chủ cần cron hệ thống gọi WP-Cron của site chính mỗi phút', ['late' => $late]);
+            }
+        }
+
+        // [2026-11-22 09:45 PM Johnny Chu - Chu Hoàng Anh] OKT-H4 — SC-12 đối chiếu chứng từ (mồ côi, thiếu) + tồn theo SKU (giai đoạn đầu: chỉ báo, tối đa vàng).
+        if (empty($opts['no_reconcile']) && (isset($deps['reconcile']) || class_exists('TGS_Acc_Reconcile'))) {
+            $rc = isset($deps['reconcile']) ? call_user_func($deps['reconcile'], $blog, $client) : TGS_Acc_Reconcile::run($blog, ['days' => self::RECONCILE_DAYS, 'skus' => self::RECONCILE_SKUS], ['client' => $client]);
+            foreach ((array) ($rc['checks'] ?? []) as $k) {
+                self::add($c, 'SC-12', $k['level'] === 'pass' ? 'pass' : 'warn', $k['id'] . ' ' . $k['message'], (array) ($k['data'] ?? []));
+            }
+        }
+
         return self::finish($blog, $tenant, $c, $now);
     }
 
@@ -314,6 +346,24 @@ class TGS_Acc_Selfcheck
     {
         $ids = function_exists('get_sites') ? get_sites(['fields' => 'ids', 'number' => 0, 'deleted' => 0, 'archived' => 0, 'spam' => 0]) : [];
         return array_values(array_filter(array_map('intval', $ids), function ($b) { return TGS_Acc_Config::key_mode($b) !== 'none'; }));
+    }
+
+    /** Lần chạy kế tiếp của các lịch bridge trên SITE CHÍNH: [hook => ts | null]; null = không đọc được (không phải multisite / ngoài WP). */
+    public static function cron_next()
+    {
+        if (!function_exists('get_main_site_id') || !function_exists('get_blog_option')) {
+            return null;
+        }
+        $cron = get_blog_option(get_main_site_id(), 'cron', []);
+        $out = array_fill_keys(array_keys(self::CRON_HOOKS), null);
+        foreach ((array) $cron as $ts => $hooks) {
+            foreach ((array) $hooks as $hook => $_) {
+                if (array_key_exists($hook, $out) && is_numeric($ts) && ($out[$hook] === null || (int) $ts < $out[$hook])) {
+                    $out[$hook] = (int) $ts;
+                }
+            }
+        }
+        return $out;
     }
 
     /** Mã bridge sẽ gửi, gom từ chứng từ đã dựng: [methods, taxes, branches, warehouses, reasons] → [mã => số lần]. */

@@ -119,8 +119,8 @@
     });
 
     /* ── tự kiểm (OKT-SC-2, luật I-8) ── */
-    var SC_IDS = ['SC-1', 'SC-2', 'SC-3', 'SC-4', 'SC-5', 'SC-6', 'SC-7', 'SC-8', 'SC-9', 'SC-10', 'SC-11'];
-    var SC_NAME = { 'SC-1': 'cấu hình', 'SC-2': 'tenant', 'SC-3': 'duy nhất', 'SC-4': 'quyền', 'SC-5': 'th.toán', 'SC-6': 'thuế', 'SC-7': 'CN · kho', 'SC-8': 'lý do', 'SC-9': 'mẫu', 'SC-10': 'hàng chờ', 'SC-11': 'đồng hồ' };
+    var SC_IDS = ['SC-1', 'SC-2', 'SC-3', 'SC-4', 'SC-5', 'SC-6', 'SC-7', 'SC-8', 'SC-9', 'SC-10', 'SC-11', 'SC-12']; // OKT-H4: SC-12 đối chiếu
+    var SC_NAME = { 'SC-1': 'cấu hình', 'SC-2': 'tenant', 'SC-3': 'duy nhất', 'SC-4': 'quyền', 'SC-5': 'th.toán', 'SC-6': 'thuế', 'SC-7': 'CN · kho', 'SC-8': 'lý do', 'SC-9': 'mẫu', 'SC-10': 'hàng chờ', 'SC-11': 'đồng hồ', 'SC-12': 'đối chiếu' };
     var SC_GLYPH = { pass: '✓', warn: '!', fail: '✕', none: '—' };
     var SC_RANK = { none: 0, pass: 1, warn: 2, fail: 3 };
     var scRows = {};

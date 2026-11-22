@@ -319,6 +319,47 @@ class TGS_Acc_Cli
         }
     }
 
+    // [2026-11-22 09:45 PM Johnny Chu - Chu Hoàng Anh] OKT-H4 — đối chiếu WP ↔ kế toán (chỉ đọc).
+    /**
+     * Đối chiếu chứng từ (thiếu, mồ côi, chờ, lỗi) và tồn theo SKU giữa WP và kế toán của shop. Chỉ đọc.
+     *
+     * ## OPTIONS
+     * --shop=<id>
+     * : Shop.
+     * [--days=<n>]
+     * : Số ngày gần nhất (mặc định 7).
+     * [--from=<Y-m-d>]
+     * [--to=<Y-m-d>]
+     * [--skus=<n>]
+     * : Số mã đối chiếu tồn (mặc định 50, mã biến động nhiều nhất trước).
+     * [--format=<f>]
+     * : table | json
+     */
+    public function reconcile($args, $assoc)
+    {
+        $blog = self::blog_arg($assoc);
+        $opts = array_filter(['days' => $assoc['days'] ?? null, 'from' => $assoc['from'] ?? null, 'to' => $assoc['to'] ?? null, 'skus' => $assoc['skus'] ?? null], static function ($v) { return $v !== null; });
+        $r = TGS_Acc_Reconcile::run($blog, $opts);
+        if (($assoc['format'] ?? 'table') === 'json') {
+            WP_CLI::line(wp_json_encode($r, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+            return;
+        }
+        $icon = ['pass' => '🟢', 'warn' => '🟡', 'fail' => '🔴'];
+        WP_CLI::line("{$icon[$r['verdict']]} Đối chiếu shop #{$blog} (chi nhánh {$r['branch']}) {$r['from']} → {$r['to']}");
+        foreach ($r['checks'] as $ck) {
+            WP_CLI::line('   ' . $icon[$ck['level']] . ' ' . str_pad($ck['id'], 4) . ' ' . $ck['message']);
+            foreach (array_slice((array) ($ck['data']['keys'] ?? []), 0, 5) as $k) {
+                WP_CLI::line('          · ' . $k);
+            }
+        }
+        if ($r['stock']) {
+            WP_CLI\Utils\format_items('table', array_slice($r['stock'], 0, 20), ['sku', 'wp', 'ketoan', 'chua_dinh_khoan', 'lech']);
+        }
+        if ($r['verdict'] === 'fail') {
+            WP_CLI::halt(1);
+        }
+    }
+
     private static function blog_arg($assoc)
     {
         // [2026-11-22 04:00 PM Johnny Chu - Chu Hoàng Anh] WP-CLI giữ --blog làm tham số chung (tên cũ của --url) nên --blog=N không tới lệnh: dùng --shop=N.

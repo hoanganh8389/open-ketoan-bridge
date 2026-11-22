@@ -217,5 +217,28 @@ $cl = new FakeClient(tenant_ok(['preflight' => function ($b) use (&$sent) { $sen
 $r = TGS_Acc_Selfcheck::run(2, [], deps($cl, $asc));
 check('SC-9 preflight 5 phiếu bán mới nhất', $sent === ['btsoft:2:sale:150', 'btsoft:2:sale:145', 'btsoft:2:sale:140', 'btsoft:2:sale:14', 'btsoft:2:sale:11']);
 
+// 17. OKT-MT-3: lịch của site chính quá hạn → SC-10 vàng / đỏ; đúng hạn → không thêm dòng
+$cr = function (array $over) { global $NOW; return ['cron' => $over + ['tgs_acc_events_retry' => $NOW - 60, 'tgs_acc_status_pull' => $NOW - 60, 'tgs_acc_selfcheck_daily' => $NOW + 3600]]; };
+reset_state();
+$r = TGS_Acc_Selfcheck::run(2, [], $cr([]) + deps(new FakeClient(tenant_ok()), $GOOD_DOCS));
+check('cron đúng hạn: SC-10 chỉ một dòng xanh', lvl($r, 'SC-10') === 'pass');
+$r = TGS_Acc_Selfcheck::run(2, [], $cr(['tgs_acc_events_retry' => $NOW - 3 * 3600]) + deps(new FakeClient(tenant_ok()), $GOOD_DOCS));
+check('gửi lại quá hạn 3 giờ: SC-10 vàng, nêu cron hệ thống', lvl($r, 'SC-10') === 'pass,warn' && strpos(msg($r, 'SC-10'), 'cron hệ thống') !== false);
+$r = TGS_Acc_Selfcheck::run(2, [], $cr(['tgs_acc_status_pull' => $NOW - 7 * 3600]) + deps(new FakeClient(tenant_ok()), $GOOD_DOCS));
+check('kéo trạng thái quá hạn 7 giờ: SC-10 đỏ', strpos(lvl($r, 'SC-10'), 'fail') !== false);
+$r = TGS_Acc_Selfcheck::run(2, [], $cr(['tgs_acc_selfcheck_daily' => null]) + deps(new FakeClient(tenant_ok()), $GOOD_DOCS));
+check('tự kiểm hằng ngày chưa lên lịch: SC-10 đỏ', strpos(lvl($r, 'SC-10'), 'fail') !== false && strpos(msg($r, 'SC-10'), 'chưa lên lịch') !== false);
+$r = TGS_Acc_Selfcheck::run(2, [], ['cron' => null] + deps(new FakeClient(tenant_ok()), $GOOD_DOCS));
+check('không đọc được lịch (ngoài multisite): bỏ qua', lvl($r, 'SC-10') === 'pass');
+
+// 18. OKT-H4: SC-12 = kết quả đối chiếu, tối đa vàng (giai đoạn đầu chỉ báo); --no-reconcile bỏ
+$rc = function ($levels) { return ['reconcile' => function () use ($levels) { return ['checks' => array_map(function ($l, $i) { return ['id' => 'R-' . ($i + 1), 'level' => $l, 'message' => "m{$i}", 'data' => []]; }, $levels, array_keys($levels))]; }]; };
+$r = TGS_Acc_Selfcheck::run(2, [], $rc(['pass', 'pass']) + deps(new FakeClient(tenant_ok()), $GOOD_DOCS));
+check('SC-12 xanh khi đối chiếu xanh', lvl($r, 'SC-12') === 'pass,pass' && in_array('R-1 m0', array_column($r['checks'], 'message'), true));
+$r = TGS_Acc_Selfcheck::run(2, [], $rc(['warn', 'fail']) + deps(new FakeClient(tenant_ok()), $GOOD_DOCS));
+check('SC-12 đỏ ở đối chiếu → vàng ở tự kiểm', lvl($r, 'SC-12') === 'warn,warn');
+$r = TGS_Acc_Selfcheck::run(2, ['no_reconcile' => true], $rc(['warn']) + deps(new FakeClient(tenant_ok()), $GOOD_DOCS));
+check('no_reconcile: không có SC-12', lvl($r, 'SC-12') === '');
+
 echo ($fail ? 'KẾT QUẢ: SAI ' : 'KẾT QUẢ: ĐẠT ') . "{$ok}/" . ($ok + $fail) . "\n";
 exit($fail ? 1 : 0);
