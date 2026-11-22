@@ -31,6 +31,7 @@
  *   includes/class-tgs-acc-api-client.php   gọi API (X-Api-Key, khuôn { ok, data|error }), nhật ký 60 lượt gọi
  *   includes/class-tgs-acc-source.php       đọc dữ liệu shop: dòng VAT (tgs-bc-tk) + phiếu thu
  *   includes/class-tgs-acc-source-pos.php   nguồn thứ hai: phiếu bán / hoàn đọc thẳng sổ POS khi không có tgs-bc-tk
+ *   includes/class-tgs-acc-selfcheck.php    tự kiểm SC-1…SC-11 theo cặp blog → tenant qua API (wp tgs-acc selfcheck, luật I-8)
  *   includes/class-tgs-acc-mapper.php       dòng VAT → khuôn chứng từ của phần mềm kế toán
  *   includes/class-tgs-acc-push-log.php     nhật ký gửi (bảng global), quyết định phiên bản
  *   includes/class-tgs-acc-pusher.php       điều phối: đọc → dựng → so nhật ký → gửi → ghi kết quả (+ ghi lượt gửi)
@@ -66,6 +67,7 @@ require_once TGS_ACC_BRIDGE_PATH . 'includes/class-tgs-acc-lists.php';
 require_once TGS_ACC_BRIDGE_PATH . 'includes/class-tgs-acc-admin.php';
 require_once TGS_ACC_BRIDGE_PATH . 'includes/class-tgs-acc-gate.php';
 require_once TGS_ACC_BRIDGE_PATH . 'includes/class-tgs-acc-events.php';
+require_once TGS_ACC_BRIDGE_PATH . 'includes/class-tgs-acc-selfcheck.php'; // [2026-11-22 11:30 AM Johnny Chu - Chu Hoàng Anh] OKT-SC-1 — tự kiểm theo cặp blog → tenant qua API (luật I-8)
 require_once TGS_ACC_BRIDGE_PATH . 'includes/class-tgs-acc-cli.php'; // [2026-11-21 09:00 PM Johnny Chu - Chu Hoàng Anh] S002-8, 11, 13 — wp tgs-acc status / preflight / pause / resume
 require_once TGS_ACC_BRIDGE_PATH . 'includes/class-tgs-acc-embed.php';
 require_once TGS_ACC_BRIDGE_PATH . 'includes/class-tgs-acc-catalog-sync.php'; // danh mục hàng lấy từ phần mềm kế toán
