@@ -143,6 +143,10 @@ class TGS_Acc_Pusher
 
         self::tag_warehouses($docs, $blog_id);
         TGS_Acc_Warehouse_Sync::normalize($docs);
+        // [2026-11-22 01:10 PM Johnny Chu - Chu Hoàng Anh] S001-MD3 — dịch mã (phương thức, lý do, thuế) theo bảng ánh xạ của blog TRƯỚC khi băm.
+        if (class_exists('TGS_Acc_Code_Map')) {
+            $docs = TGS_Acc_Code_Map::apply_all($docs, $blog_id);
+        }
 
         // Một phiếu một chứng từ (phiếu vừa trong khoảng vừa bị sửa không lặp).
         $uniq = [];
@@ -325,6 +329,9 @@ class TGS_Acc_Pusher
 
         $docs = array_values($docs);
         TGS_Acc_Warehouse_Sync::normalize($docs); // phiếu chuyển kho global (phần dựng bằng build đã chuẩn hoá — chạy lại không đổi)
+        if (class_exists('TGS_Acc_Code_Map')) {
+            $docs = TGS_Acc_Code_Map::apply_all($docs, $blog_id); // S001-MD3 — chạy lại không đổi (mã đã dịch không phải mã nguồn)
+        }
         return ['docs' => $docs, 'gone' => self::gone_keys($blog_id, $want, $want_ct, $docs, $want_gt), 'failed' => $failed, 'want' => $want, 'want_ct' => $want_ct, 'want_gt' => $want_gt];
     }
 

@@ -118,8 +118,13 @@ class TGS_Acc_Selfcheck
         $docs = array_map(function ($d) { return class_exists('TGS_Acc_Pusher') && method_exists('TGS_Acc_Pusher', 'decorate') ? TGS_Acc_Pusher::decorate($d) : $d; }, (array) ($built['docs'] ?? []));
         $used = self::used_codes($docs);
 
-        // SC-5…SC-8 đối chiếu danh mục tenant
+        // SC-5…SC-8 đối chiếu danh mục tenant — mã ĐÃ DỊCH theo bảng ánh xạ của blog (S001-MD3)
         self::against($c, 'SC-5', 'phương thức thanh toán', $used['methods'], $client->get('/api/v1/posting/payment-methods'));
+        // [2026-11-22 01:10 PM Johnny Chu - Chu Hoàng Anh] S001-MD3 — chưa có bảng ánh xạ: mã đang suy từ nhãn (đặc tả 75 SC-5 warn).
+        $map_ready = $deps['map_ready'] ?? (class_exists('TGS_Okt_Map') && TGS_Okt_Map::ready($blog));
+        if (!$map_ready) {
+            self::add($c, 'SC-5', 'warn', 'Chưa có bảng ánh xạ mã ({prefix}tgs_okt_map, open-pos-backend S001-MD3) — mã phương thức / lý do / thuế đang gửi đúng như bridge suy ra', []);
+        }
         self::against($c, 'SC-6', 'mã thuế', $used['taxes'], $client->get('/api/v1/tax-codes'));
         $br = $client->get('/api/v1/branches');
         self::against($c, 'SC-7', 'chi nhánh', $used['branches'], $br);

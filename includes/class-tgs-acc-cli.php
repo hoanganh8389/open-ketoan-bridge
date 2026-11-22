@@ -10,6 +10,7 @@
  *   wp tgs-acc resume    --blog=<id> [--now]            bỏ tạm dừng; --now: gửi bù hàng chờ ngay (không chờ cron)
  *   wp tgs-acc selfcheck --blog=<id> | --all            tự kiểm cặp blog → tenant qua API (SC-1…SC-11, luật I-8)
  *                       [--confirm-tenant] [--samples=5] [--format=table|json]   thoát 0 = xanh / vàng, 1 = có đỏ
+ *   wp tgs-acc map       --blog=<id> [--auto] [--set=<kind>:<mã bridge>=<mã tenant>]…   bảng ánh xạ mã (S001-MD3)
  *
  * Lớp chỉ đọc sổ POS (qua TGS_Acc_Pusher / TGS_Acc_Source). Không ghi sổ POS (ADR-OKT-1 I-0).
  *
@@ -200,6 +201,65 @@ class TGS_Acc_Cli
             return;
         }
         WP_CLI::success("Đã bỏ tạm dừng shop #{$blog}; {$q['groups']} nhóm trong hàng chờ sẽ gửi ở lượt cron kế tiếp (thêm --now để gửi ngay).");
+    }
+
+    // [2026-11-22 01:10 PM Johnny Chu - Chu Hoàng Anh] S001-MD3 — lệnh xem / tự dựng / đặt ánh xạ mã.
+    /**
+     * Bảng ánh xạ mã bridge sinh → mã ở tenant (phương thức, lý do, thuế) của một shop.
+     *
+     * ## OPTIONS
+     * --blog=<id>
+     * : Shop.
+     * [--auto]
+     * : Tự dựng từ các phiếu gần nhất + danh mục tenant (không ghi đè dòng đã xác nhận).
+     * [--set=<kind:local=remote>]
+     * : Đặt (xác nhận) một dòng, vd --set=method:QR-VTB-CT=QR. Lặp được bằng dấu phẩy.
+     * [--format=<f>]
+     * : table (mặc định) | json.
+     */
+    public function map($args, $assoc)
+    {
+        $blog = self::blog_arg($assoc);
+        if (!class_exists('TGS_Okt_Map')) {
+            WP_CLI::error('Chưa có bảng ánh xạ: cần open-pos-backend có S001-MD3 (DB_VERSION 1.1.63).');
+        }
+        if (!empty($assoc['set'])) {
+            foreach (array_filter(array_map('trim', explode(',', (string) $assoc['set']))) as $one) {
+                if (!preg_match('/^(method|reason|tax):([^=]+)=(.*)$/', $one, $m)) {
+                    WP_CLI::error("--set sai dạng: {$one} (đúng: method:QR-VTB-CT=QR)");
+                }
+                TGS_Okt_Map::set($blog, $m[1], trim($m[2]), trim($m[3]), 'admin');
+                WP_CLI::line("  ✔ {$m[1]}: {$m[2]} → " . (trim($m[3]) !== '' ? trim($m[3]) : '(bỏ ánh xạ)'));
+            }
+        }
+        if (!empty($assoc['auto'])) {
+            $r = TGS_Acc_Code_Map::auto($blog);
+            if (is_wp_error($r)) {
+                WP_CLI::error('Không tự dựng được: ' . $r->get_error_message());
+            }
+            WP_CLI::line("Tự dựng từ {$r['scanned']} phiếu gần nhất, tenant {$r['tenant']}");
+        }
+        $rows = TGS_Okt_Map::rows($blog);
+        if (($assoc['format'] ?? 'table') === 'json') {
+            WP_CLI::line(wp_json_encode($rows, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+            return;
+        }
+        $miss = 0;
+        foreach ($rows as $kind => $list) {
+            WP_CLI::line("[{$kind}]");
+            foreach ($list as $local => $r) {
+                $empty = (string) $r['remote_code'] === '';
+                $miss += $empty ? 1 : 0;
+                WP_CLI::line(sprintf('  %s %-22s → %-14s %s ×%d %s', $empty ? '✕' : '✓', $local, $empty ? '(chưa ánh xạ)' : $r['remote_code'], $r['map_source'] === 'admin' ? 'đã xác nhận' : 'gợi ý', (int) $r['used_count'], $r['local_label'] !== '' ? '· ' . $r['local_label'] : ''));
+            }
+        }
+        if (!$rows) {
+            WP_CLI::warning('Chưa có dòng nào — chạy với --auto.');
+        } elseif ($miss) {
+            WP_CLI::warning("{$miss} dòng chưa ánh xạ — đặt bằng --set hoặc ở Quản lý Shop → Ánh xạ kế toán.");
+        } else {
+            WP_CLI::success('Mọi mã đã ánh xạ.');
+        }
     }
 
     // [2026-11-22 11:30 AM Johnny Chu - Chu Hoàng Anh] OKT-SC-1 — lệnh tự kiểm (luật I-8).
