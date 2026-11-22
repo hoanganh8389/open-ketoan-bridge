@@ -44,6 +44,6 @@ M8 trùng tenant → SC-3 đỏ cả hai, tự tạm dừng · M9 SC-0b "multisi
 15 tệp đạt: mới `site-single-test` 16/16 (tiến trình không có hàm multisite), `ms0-census-test`; `selfcheck-test` 58/58 (+SC-0b);
 `config-test` S5 đổi theo hành vi mới (save_blog ở một site); các test giả multisite nạp lớp bao thật.
 
-## Rủi ro ghi nhận
-Mọi bản cài một site đều là **blog 1** → hai cửa hàng tự cài cùng nối một tenant sẽ có `docKey` `btsoft:1:sale:N` **đụng nhau**; SC-3 không thấy
-(bản đồ tenant ở từng bản cài). Cần mã bản cài trong `docKey` hoặc kiểm phía kế toán — ghi vào open-setup 80.
+## `docKey` của bản cài một site (Q-OKT-6 ✅ 23/11)
+Mọi bản cài một site đều là blog 1 → `btsoft:1:…`. Chủ chốt: **không phải rủi ro** — mỗi chủ shop có phần mềm kế toán (tenant) riêng, API key nội bộ
+open-ketoan cấp riêng cho open-pos của shop đó (I-1 ở kiểu 3). Không đổi `docKey`.
