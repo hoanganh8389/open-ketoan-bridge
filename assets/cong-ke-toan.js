@@ -41,6 +41,7 @@
     /* ── chọn shop (dùng ở nhiều chỗ) ── */
     var opts = CFG.shops.map(function (s) { return '<option value="' + s.blog + '">' + esc(s.code + ' — ' + s.name) + '</option>'; }).join('');
     ['#taccLogBlog', '#taccRunBlog'].forEach(function (id) { $(id).insertAdjacentHTML('beforeend', opts); });
+    $('#taccTrBlog').innerHTML = opts; // OKT-TRACE
     $$('.tacc-sample__blog').forEach(function (el) { el.innerHTML = opts; });
     $('#taccShopPick').innerHTML = '<label class="all"><input type="checkbox" id="taccAll" checked> Tất cả (' + CFG.shops.length + ' shop áp dụng thuế)</label>'
         + CFG.shops.map(function (s) { return '<label><input type="checkbox" class="taccShop" value="' + s.blog + '" checked> ' + esc(s.code) + '</label>'; }).join('');
@@ -75,6 +76,47 @@
             ? '<span class="tacc-pill bad">Tạm dừng</span> <span class="tacc-muted">từ ' + esc(fmtT(c.since)) + '</span>' + why + q + sc + ' <a href="#" class="taccPause" data-op="resume" data-blog="' + blog + '">Bỏ tạm dừng</a>'
             : '<span class="tacc-pill">Đang nối</span>' + q + sc + ' <a href="#" class="taccPause" data-op="pause" data-blog="' + blog + '">Tạm dừng</a>';
     }
+
+    /* ── trace một phiếu (OKT-TRACE) ── */
+    var TR_NAME = { pass: 'ổn', warn: 'cần xem', fail: 'lỗi', none: 'không có' };
+    function trRender(d) {
+        var steps = d.steps.map(function (s, i) {
+            return '<tr><td style="width:30px"><span class="tacc-sc ' + s.level + '" title="' + TR_NAME[s.level] + '">' + SC_GLYPH[s.level] + '</span></td><td style="width:24px" class="tacc-muted">' + (i + 1) + '</td><td style="width:150px"><b>' + esc(s.name) + '</b></td><td>' + esc(s.message) + '</td></tr>';
+        }).join('');
+        var b = d.steps.filter(function (s) { return s.key === 'build'; })[0];
+        var docs = (b && b.data.docs || []).map(function (x) {
+            var mp = x.mapped.length ? x.mapped.map(function (m) { return esc(m.field) + ': <code>' + esc(m.from) + '</code> → <code>' + esc(m.to) + '</code>'; }).join('<br>') : '<span class="tacc-muted">không dịch mã nào</span>';
+            var codes = Object.keys(x.codes).map(function (k) { return esc(k) + ' <code>' + esc(x.codes[k]) + '</code>'; }).join(' · ');
+            return '<tr><td><code>' + esc(x.docKey) + '</code></td><td>' + esc(x.docType) + '</td><td>' + esc(x.docNo) + '</td><td>' + fmtD(x.docDate) + '</td><td class="r">' + num(x.total) + '</td><td class="r">' + x.lines + '</td><td>' + codes + '</td><td>' + mp + '</td><td class="tacc-muted"><code>' + esc(x.hash.slice(0, 8)) + '</code></td></tr>';
+        }).join('');
+        var l = d.steps.filter(function (s) { return s.key === 'ledger'; })[0];
+        var leds = (l && l.data.rows || []).map(function (r) {
+            return '<tr><td>#' + r.id + '</td><td>' + esc(r.type) + '</td><td>' + (r.parent_id > 0 ? '#' + r.parent_id : '') + '</td><td>' + esc(r.code) + '</td><td>' + fmtD(r.day) + '</td><td class="r">' + num(r.total) + '</td><td>' + (+r.approver_status === 1 ? 'đã duyệt' : 'chưa duyệt') + (+r.is_deleted ? ' · đã xoá' : '') + '</td></tr>';
+        }).join('');
+        $('#taccTrOut').innerHTML = '<div class="tacc-tablewrap"><table class="tacc-table"><tbody>' + steps + '</tbody></table></div>'
+            + (docs ? '<div class="tacc-card__title" style="margin-top:14px">Chứng từ dựng ra (đường gửi thật, chưa gửi)</div><div class="tacc-tablewrap"><table class="tacc-table"><thead><tr><th>docKey</th><th>Loại</th><th>Số</th><th>Ngày</th><th class="r">Tổng</th><th class="r">Dòng</th><th>Mã gửi đi</th><th>Đã dịch (ánh xạ)</th><th>Mã băm</th></tr></thead><tbody>' + docs + '</tbody></table></div>' : '')
+            + (leds ? '<div class="tacc-card__title" style="margin-top:14px">Sổ POS (chỉ đọc)</div><div class="tacc-tablewrap"><table class="tacc-table"><thead><tr><th>Id</th><th>Loại</th><th>Cha</th><th>Mã phiếu</th><th>Ngày</th><th class="r">Tiền</th><th>Trạng thái</th></tr></thead><tbody>' + leds + '</tbody></table></div>' : '');
+    }
+    function trGo() {
+        var ref = $('#taccTrRef').value.trim();
+        if (!ref) { $('#taccTrInfo').textContent = 'Nhập mã chứng từ hoặc id phiếu.'; return; }
+        $('#taccTrInfo').textContent = 'Đang trace…';
+        R.post('tgs_acc_trace', { blog: $('#taccTrBlog').value, ref: ref, days: $('#taccTrDays').value, remote: $('#taccTrRemote').checked ? 1 : '' }).then(function (d) {
+            $('#taccTrInfo').textContent = 'Shop ' + shopLabel(d.blog) + ' · phiếu #' + d.id + (d.docKey ? ' · ' + d.docKey : '');
+            trRender(d);
+        }).catch(function (e) { $('#taccTrInfo').textContent = e.message; $('#taccTrOut').innerHTML = ''; });
+    }
+    $('#taccTrGo').addEventListener('click', trGo);
+    $('#taccTrRef').addEventListener('keydown', function (e) { if (e.key === 'Enter') { trGo(); } });
+    app.addEventListener('click', function (ev) {
+        var a = ev.target.closest('.taccTrace');
+        if (!a) { return; }
+        ev.preventDefault();
+        $('#taccTrBlog').value = a.dataset.blog;
+        $('#taccTrRef').value = a.dataset.ref;
+        show('trace');
+        trGo();
+    });
 
     /* ── tự kiểm (OKT-SC-2, luật I-8) ── */
     var SC_IDS = ['SC-1', 'SC-2', 'SC-3', 'SC-4', 'SC-5', 'SC-6', 'SC-7', 'SC-8', 'SC-9', 'SC-10', 'SC-11'];
@@ -255,7 +297,7 @@
                 return '<tr><td><b>' + esc(shopLabel(r.blog_id)) + '</b></td><td>' + fmtD(r.doc_date) + '</td><td>' + esc(r.doc_no) + '</td>'
                     + '<td>' + esc(TYPE[r.doc_type] || r.doc_type) + '</td><td><code>' + esc(r.doc_key) + '</code></td><td class="r">' + r.version + '</td>'
                     + '<td><span class="tacc-pill ' + st[1] + '">' + esc(st[0]) + '</span></td><td class="msg">' + esc(r.message) + '</td><td>' + fmtT(r.pushed_at) + '</td>'
-                    + '<td><a href="#" class="taccResend" data-blog="' + r.blog_id + '" data-date="' + esc(r.doc_date) + '">Gửi lại ngày này</a></td></tr>';
+                    + '<td><a href="#" class="taccResend" data-blog="' + r.blog_id + '" data-date="' + esc(r.doc_date) + '">Gửi lại ngày này</a> · <a href="#" class="taccTrace" data-blog="' + r.blog_id + '" data-ref="' + esc(r.doc_key) + '">Trace</a></td></tr>';
             }).join('') || '<tr><td colspan="10" class="tacc-muted">Không có chứng từ nào khớp bộ lọc.</td></tr>';
             $('#taccLogPager').innerHTML = pages > 1
                 ? '<button type="button" class="tacc-btn ghost" data-p="' + (logPage - 1) + '"' + (logPage <= 1 ? ' disabled' : '') + '>‹ Trước</button>'
