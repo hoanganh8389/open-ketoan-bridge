@@ -46,6 +46,7 @@ $tacc_status = ['live' => ['Đang chạy', 'ok'], 'planned' => ['Dự kiến', '
         <button type="button" data-tab="api">Danh mục API</button>
         <button type="button" data-tab="lists">Danh mục kế toán</button>
         <button type="button" data-tab="calls">Lượt gọi API</button>
+        <button type="button" data-tab="topology">Sơ đồ kết nối</button><!-- [2026-11-23 12:40 PM Johnny Chu - Chu Hoàng Anh] OKT-SET-3 -->
         <button type="button" data-tab="settings">Cài đặt</button>
     </nav>
 
@@ -250,8 +251,15 @@ $tacc_status = ['live' => ['Đang chạy', 'ok'], 'planned' => ['Dự kiến', '
         </div>
     </section>
 
+    <!-- SƠ ĐỒ KẾT NỐI ([2026-11-23 12:40 PM Johnny Chu - Chu Hoàng Anh] OKT-SET-3 — open-setup 82 B-7: site → bridge → máy open-ketoan → tenant, ping từng site, từng máy) -->
+    <section class="tacc-panel" data-panel="topology" hidden>
+        <div class="tacc-card" id="taccTopo"><span class="tacc-muted">Đang tải…</span></div>
+    </section>
+
     <!-- CÀI ĐẶT -->
     <section class="tacc-panel" data-panel="settings" hidden>
+        <!-- [2026-11-23 12:40 PM Johnny Chu - Chu Hoàng Anh] OKT-SET-3 — ma trận ba mô hình (luật tối thượng P-0; open-setup 82 B-2) -->
+        <div class="tacc-card" id="taccModel"><span class="tacc-muted">Đang tải…</span></div>
         <div class="tacc-card">
             <div class="tacc-card__title">Kết nối</div>
             <div class="tacc-grid">

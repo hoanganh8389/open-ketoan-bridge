@@ -18,21 +18,61 @@ class TGS_Acc_Api_Client
     private $key;
     /** @var int giây chờ riêng cho lượt gọi (0 = theo Cài đặt) */
     private $timeout = 0;
+    // [2026-11-23 12:10 PM Johnny Chu - Chu Hoàng Anh] OKT-SET-2 — nhánh khoá cài đặt (chain): header X-OKT-Blog / X-OKT-Install; blog của client để ghi trạng thái nối.
+    /** @var array<string,string> header thêm cho mọi lượt gọi có khoá */
+    private $headers = [];
+    /** @var int blog mà client gọi thay (0 = không gắn blog) */
+    private $blog = 0;
 
     // [2026-11-22 06:30 PM Johnny Chu - Chu Hoàng Anh] OKT-CAU-DAO — thời gian chờ cho cả request hiện tại (gửi tức thời đặt 5 s rồi trả lại 0).
     /** @var int */
     public static $request_timeout = 0;
 
-    /** Định danh kết nối (URL + khoá) — để đệm theo đúng tenant (I-1), không lộ khoá. */
+    /** Định danh kết nối (URL + khoá + blog) — để đệm theo đúng tenant (I-1), không lộ khoá. Khoá cài đặt dùng chung nhiều blog → tách theo X-OKT-Blog. */
     public function identity()
     {
-        return substr(md5($this->base . '|' . $this->key), 0, 12);
+        return substr(md5($this->base . '|' . $this->key . (isset($this->headers['X-OKT-Blog']) ? '|blog:' . $this->headers['X-OKT-Blog'] : '')), 0, 12);
+    }
+
+    /** Thêm header cho mọi lượt gọi có khoá (X-OKT-Blog, X-OKT-Install). */
+    public function with_headers(array $h)
+    {
+        $this->headers = array_merge($this->headers, array_map('strval', $h));
+        return $this;
+    }
+
+    /** 'own' | 'install' | 'legacy' | 'custom' — client đang đi khoá nào (để hiện / test). */
+    public function mode()
+    {
+        return isset($this->headers['X-OKT-Blog']) ? 'install' : ($this->blog > 0 ? 'blog' : 'custom');
+    }
+
+    /** Gắn client vào nhánh khoá cài đặt cho blog $blog_id (mô hình chain, blog không có khoá riêng). */
+    private function use_install($blog_id)
+    {
+        $this->blog = (int) $blog_id;
+        $this->key = TGS_Acc_Install::key();
+        $this->headers = array_merge($this->headers, TGS_Acc_Install::headers($blog_id));
     }
 
     public function __construct($base = '', $key = '')
     {
         $this->base = rtrim($base !== '' ? $base : TGS_Acc_Config::url(), '/');
         $this->key  = $key !== '' ? $key : TGS_Acc_Config::key();
+        // OKT-SET-2 — client mặc định của blog hiện tại: nhánh chain đi khoá cài đặt + X-OKT-Blog (khoá riêng của blog vẫn thắng).
+        $cur = TGS_Acc_Config::current_blog();
+        if ($key === '' && $cur > 0 && TGS_Acc_Config::key_mode($cur) === 'install') {
+            $this->use_install($cur);
+        }
+    }
+
+    /** Client đúng URL + khoá truyền vào (không lấy mặc định của blog hiện tại; '' giữ nguyên là rỗng). */
+    public static function raw($base, $key)
+    {
+        $c = new self(' ', ' ');
+        $c->base = rtrim(trim((string) $base), '/');
+        $c->key = trim((string) $key);
+        return $c;
     }
 
     /** Nhật ký gọi gần nhất (vòng 60 lượt, site option) — để trang "Cổng kế toán" xem nhanh. */
@@ -250,7 +290,7 @@ class TGS_Acc_Api_Client
         if ($this->base === '') {
             return new WP_Error('ketoan_not_configured', 'Chưa khai địa chỉ phần mềm kế toán');
         }
-        $resp = wp_remote_get($this->base . $path, ['timeout' => 60, 'headers' => ['X-Api-Key' => $this->key]]);
+        $resp = wp_remote_get($this->base . $path, ['timeout' => 60, 'headers' => ['X-Api-Key' => $this->key] + $this->headers]);
         if (is_wp_error($resp)) {
             return $resp;
         }
@@ -269,14 +309,14 @@ class TGS_Acc_Api_Client
         $args = [
             'method'  => $method,
             'timeout' => $this->timeout ?: (self::$request_timeout ?: ((int) TGS_Acc_Config::get('timeout') ?: 60)),
-            'headers' => ['X-Api-Key' => $this->key, 'Accept' => 'application/json'],
+            'headers' => ['X-Api-Key' => $this->key, 'Accept' => 'application/json'] + $this->headers,
         ];
         if ($body !== null) {
             $args['headers']['Content-Type'] = 'application/json';
             $args['body'] = wp_json_encode($body, JSON_UNESCAPED_UNICODE);
         }
         if (!$with_key) {
-            unset($args['headers']['X-Api-Key']);
+            $args['headers'] = ['Accept' => 'application/json'] + (isset($args['headers']['Content-Type']) ? ['Content-Type' => 'application/json'] : []);
         }
         $count = ($body !== null && isset($body['documents'])) ? count((array) $body['documents']) : null;
         $t0 = microtime(true);
@@ -304,7 +344,16 @@ class TGS_Acc_Api_Client
             if (!empty($err['details']) && is_array($err['details'])) {
                 $msg .= ' — ' . wp_json_encode($err['details'], JSON_UNESCAPED_UNICODE);
             }
-            return new WP_Error((string) ($err['code'] ?? 'ketoan_error'), $msg, ['status' => $code]);
+            $reason = (string) ($err['details']['reason'] ?? '');
+            // OKT-SET-2 — blog chưa nối / open-ketoan chưa biết blog: ghi trạng thái để hàng chờ GIỮ đơn (không tính lần thử, I-3).
+            if ($this->blog > 0 && isset($this->headers['X-OKT-Blog']) && in_array($reason, TGS_Acc_Install::NOT_LINKED, true)) {
+                TGS_Acc_Install::mark($this->blog, $reason === 'BLOG_UNKNOWN' ? 'unknown' : ((string) ($err['details']['status'] ?? '') ?: 'pending'));
+                $msg = TGS_Acc_Install::HOLD_MSG . ' — ' . $msg;
+            }
+            return new WP_Error((string) ($err['code'] ?? 'ketoan_error'), $msg, ['status' => $code, 'reason' => $reason]);
+        }
+        if ($this->blog > 0 && isset($this->headers['X-OKT-Blog']) && TGS_Acc_Install::status($this->blog) !== 'active') {
+            TGS_Acc_Install::mark($this->blog, 'active'); // gọi được bằng (khoá cài đặt, blog) = blog đã nối
         }
         return $json;
     }
@@ -318,6 +367,12 @@ class TGS_Acc_Api_Client
     public static function for_blog($blog_id, $allow_legacy = true)
     {
         $blog_id = (int) $blog_id;
+        // [2026-11-23 12:10 PM Johnny Chu - Chu Hoàng Anh] OKT-SET-2 — mô hình chain, blog không có khoá riêng: khoá cài đặt + X-OKT-Blog (open-ketoan đổi ra tenant của blog).
+        if (TGS_Acc_Config::key_mode($blog_id) === 'install') {
+            $c = self::raw(TGS_Acc_Config::url_for($blog_id), '');
+            $c->use_install($blog_id);
+            return $c;
+        }
         $key = TGS_Acc_Config::key_for($blog_id);
         if ($key === '' && $allow_legacy) {
             $key = TGS_Acc_Config::key_legacy();

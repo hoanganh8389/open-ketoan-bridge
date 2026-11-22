@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Open Kế toán Bridge (Cổng kế toán)
  * Description: Đẩy chứng từ bán hàng (phiếu xuất bán VAT, bill nội bộ, phiếu điều chỉnh giảm) sang phần mềm kế toán qua API chuẩn. Tiền theo đúng luật của màn Quản lý VAT (khớp hoá đơn đã phát hành).
- * Version: 0.5.0
+ * Version: 0.6.0
  * Author: TGS
  * Network: true
  *
@@ -53,13 +53,14 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('TGS_ACC_BRIDGE_VERSION', '0.5.0');
+define('TGS_ACC_BRIDGE_VERSION', '0.6.0'); // OKT-SET-2/3 — khoá cài đặt (chain), ping, sơ đồ
 define('TGS_ACC_BRIDGE_PATH', plugin_dir_path(__FILE__));
 
 require_once TGS_ACC_BRIDGE_PATH . 'includes/class-tgs-acc-site.php'; // [2026-11-23 02:10 AM Johnny Chu - Chu Hoàng Anh] OKT-TOPO-2 — lớp bao kiểu cài (một site / multisite), nạp trước mọi lớp khác
 require_once TGS_ACC_BRIDGE_PATH . 'includes/class-tgs-acc-profile.php'; // [2026-11-23 06:40 AM Johnny Chu - Chu Hoàng Anh] OKT-TOPO-9 — hồ sơ mô hình triển khai (bizcity · chain · single), khai rõ
 require_once TGS_ACC_BRIDGE_PATH . 'includes/class-tgs-acc-config.php';
 require_once TGS_ACC_BRIDGE_PATH . 'includes/class-tgs-acc-api-client.php';
+require_once TGS_ACC_BRIDGE_PATH . 'includes/class-tgs-acc-install.php'; // [2026-11-23 12:10 PM Johnny Chu - Chu Hoàng Anh] OKT-SET-2 / OKT-SET-3 — khoá cài đặt (chain), đăng ký cửa hàng, ping 5 phút, sơ đồ kết nối
 require_once TGS_ACC_BRIDGE_PATH . 'includes/class-tgs-acc-source.php';
 require_once TGS_ACC_BRIDGE_PATH . 'includes/class-tgs-acc-source-pos.php'; // [2026-11-21 08:11 PM Johnny Chu - Chu Hoàng Anh] S002-4 — nguồn phiếu bán / hoàn từ sổ POS khi không có tgs-bc-tk (chỉ đọc)
 require_once TGS_ACC_BRIDGE_PATH . 'includes/class-tgs-acc-mapper.php';
@@ -106,7 +107,7 @@ register_activation_hook(__FILE__, function () {
     }
 });
 register_deactivation_hook(__FILE__, function () {
-    foreach ([TGS_Acc_Events::CRON_HOOK, TGS_Acc_Events::STATUS_HOOK, TGS_Acc_Selfcheck::DAILY_HOOK] as $hook) {
+    foreach ([TGS_Acc_Events::CRON_HOOK, TGS_Acc_Events::STATUS_HOOK, TGS_Acc_Selfcheck::DAILY_HOOK, TGS_Acc_Install::PING_HOOK] as $hook) {
         wp_clear_scheduled_hook($hook);
     }
 });

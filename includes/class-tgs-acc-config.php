@@ -40,6 +40,7 @@ class TGS_Acc_Config
             'sso_secret' => '',   // khoá chung ký vé đăng nhập phần mềm kế toán bằng tài khoản WordPress (= WP_SSO_SECRET bên kế toán)
             'sso_tenant' => '',   // mã đơn vị kế toán nhận người dùng (trống = đơn vị mặc định bên kế toán)
             'catalog_from_erp' => '0', // '1' = danh mục hàng (mặt hàng, ĐVT, bảng giá, giá) lấy từ kế toán, khoá sửa bên này (TGS_Acc_Catalog_Sync)
+            'install_key' => '',  // [2026-11-23 12:10 PM Johnny Chu - Chu Hoàng Anh] OKT-SET-2 — khoá cài đặt open-pos (okti_…) của mô hình nhiều cửa hàng; hằng TGS_KETOAN_INSTALL_KEY thắng
         ];
     }
 
@@ -156,11 +157,18 @@ class TGS_Acc_Config
         return $out;
     }
 
-    /** 'own' = blog có khoá riêng · 'legacy' = chỉ có khoá chung của mạng · 'none' = không có khoá nào. */
+    /**
+     * 'own' = blog có khoá riêng · 'install' = mô hình nhiều cửa hàng, đi khoá cài đặt + X-OKT-Blog (OKT-SET-2) ·
+     * 'legacy' = chỉ có khoá chung của mạng · 'none' = không có khoá nào. Khoá riêng thắng khoá cài đặt; khoá cài đặt thắng khoá chung.
+     */
     public static function key_mode($blog_id)
     {
         if (self::key_for($blog_id) !== '') {
             return 'own';
+        }
+        // [2026-11-23 12:10 PM Johnny Chu - Chu Hoàng Anh] OKT-SET-2 — nhánh chain (luật tối thượng P-0 ý 2 (a)): một khoá cài đặt, mỗi blog một tenant.
+        if ((int) $blog_id > 0 && class_exists('TGS_Acc_Install') && TGS_Acc_Install::active()) {
+            return 'install';
         }
         return self::key_legacy() !== '' ? 'legacy' : 'none';
     }
@@ -238,8 +246,17 @@ class TGS_Acc_Config
      */
     public static function key()
     {
-        $own = self::key_for(self::current_blog());
-        return $own !== '' ? $own : self::key_legacy();
+        $cur = self::current_blog();
+        $own = self::key_for($cur);
+        if ($own !== '') {
+            return $own;
+        }
+        // [2026-11-23 01:20 PM Johnny Chu - Chu Hoàng Anh] OKT-SET-2 — nhánh chain: blog hiện tại đi khoá cài đặt. Thiếu dòng này thì ready() sai →
+        // Events::targets() rỗng → blog đã nối không gửi tức thời (bắt được khi chạy thật okt-wp ⇄ okt-thu 22/11, unit test không thấy).
+        if (self::key_mode($cur) === 'install') {
+            return TGS_Acc_Install::key();
+        }
+        return self::key_legacy();
     }
 
     /** Sổ thuế: địa chỉ + khoá API: hằng TGS_KETOAN_TAX_API_URL / _KEY → blog → mạng. Trống = không gửi sổ thuế. */
@@ -289,7 +306,7 @@ class TGS_Acc_Config
     public static function ready_for($blog_id)
     {
         $blog_id = (int) $blog_id;
-        return self::url_for($blog_id) !== '' && (self::key_for($blog_id) !== '' || self::key_legacy() !== '');
+        return self::url_for($blog_id) !== '' && self::key_mode($blog_id) !== 'none'; // OKT-SET-2 — tính cả khoá cài đặt
     }
 
     /** Như get() nhưng của một blog chỉ định: blog → mạng → mặc định. */
@@ -494,6 +511,18 @@ class TGS_Acc_Config
         }
         if (isset($in['realtime'])) {
             $s['realtime'] = in_array((string) $in['realtime'], ['0', 'false', ''], true) ? '0' : '1';
+        }
+        // [2026-11-23 12:10 PM Johnny Chu - Chu Hoàng Anh] OKT-SET-2 — khoá cài đặt (ô trống = giữ; "-" = xoá; phải bắt đầu okti_). Hằng TGS_KETOAN_INSTALL_KEY thì không ghi.
+        if (isset($in['install_key']) && !(defined('TGS_KETOAN_INSTALL_KEY') && TGS_KETOAN_INSTALL_KEY !== '')) {
+            $ik = trim((string) $in['install_key']);
+            if ($ik === '-') {
+                $s['install_key'] = '';
+            } elseif ($ik !== '') {
+                if (strpos($ik, 'okti_') !== 0) {
+                    return new WP_Error('bad_install_key', 'Khoá cài đặt của open-ketoan bắt đầu bằng okti_ (Hệ thống → Kết nối open-pos → Tạo khoá cài đặt). Khoá kt_… là khoá API của MỘT sổ — khai ở từng cửa hàng');
+                }
+                $s['install_key'] = $ik;
+            }
         }
         if (isset($in['catalog_from_erp'])) {
             $s['catalog_from_erp'] = in_array((string) $in['catalog_from_erp'], ['1', 'true'], true) ? '1' : '0';
