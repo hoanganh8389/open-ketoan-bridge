@@ -74,6 +74,9 @@ foreach ([1, 2, 3, 4] as $b) {
 // shop-c (kế toán hỏng) đang có một phân kho cũ — tải hỏng không được ẩn nó
 $wpdb->t['wp_4_local_warehouse_zone'][1] = ['id' => 1, 'zone_code' => 'KCN03', 'zone_name' => 'Kho C', 'sort_order' => 100, 'is_deleted' => 0];
 
+// [2026-11-23 02:20 AM] OKT-TOPO-2 — lớp bao kiểu cài thật; test này giả multisite (get_blog_option giả).
+if (!function_exists('is_multisite')) { function is_multisite() { return true; } }
+require_once dirname(__DIR__) . '/includes/class-tgs-acc-site.php';
 require dirname(__DIR__) . '/includes/class-tgs-acc-warehouse-sync.php';
 
 $ok = 0; $fail = 0;

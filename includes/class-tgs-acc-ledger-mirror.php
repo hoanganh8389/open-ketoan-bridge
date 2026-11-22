@@ -115,8 +115,7 @@ final class TGS_Acc_Ledger_Mirror
     /** Chạy $fn trong site $blog_id, trong giao dịch, gỡ bộ hứng của cầu nối; bắn tgs_acc_ledger_mirrored khi ghi được. */
     private static function in_blog($blog_id, callable $fn, $entity, $pg_id)
     {
-        $switched = is_multisite() && get_current_blog_id() !== $blog_id;
-        if ($switched) switch_to_blog($blog_id);
+        TGS_Acc_Site::switch_to($blog_id);
         global $wpdb;
         $hook = self::detach_events();
         self::$mirroring = true;
@@ -134,7 +133,7 @@ final class TGS_Acc_Ledger_Mirror
         if (!is_wp_error($result) && empty($result['skipped'])) {
             do_action('tgs_acc_ledger_mirrored', $entity, $result['ledger_ids'], $pg_id, $blog_id);
         }
-        if ($switched) restore_current_blog();
+        TGS_Acc_Site::restore();
         return $result;
     }
 

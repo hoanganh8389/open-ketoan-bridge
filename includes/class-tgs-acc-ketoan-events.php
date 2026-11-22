@@ -149,13 +149,12 @@ final class TGS_Acc_Ketoan_Events
             }
             $ctx['parent_code'] = (string) ($doc['originalDocNo'] ?? '');
         }
-        $switched = is_multisite() && get_current_blog_id() !== $blog_id;
-        if ($switched) switch_to_blog($blog_id);
+        TGS_Acc_Site::switch_to($blog_id);
         try {
             $ctx['user_id'] = self::user_id((string) ($data['cashier']['name'] ?? ''));
             $body = $kind === 'sale' ? TGS_Acc_Trade_Mapper::sale_to_mirror($doc, $ctx) : TGS_Acc_Trade_Mapper::return_to_mirror($doc, $ctx);
         } finally {
-            if ($switched) restore_current_blog();
+            TGS_Acc_Site::restore();
         }
         if (is_wp_error($body)) return $body;
         $r = TGS_Acc_Ledger_Mirror::apply($body);
@@ -228,8 +227,7 @@ final class TGS_Acc_Ketoan_Events
             'partner' => ['code' => (string) ($customer['phone'] ?? ''), 'name' => (string) ($customer['name'] ?? '')],
             'payments' => !$exchange && $total > 0 ? [['methodCode' => (string) ($ret['refundMethod'] ?? 'TM'), 'amount' => $total]] : [],
         ];
-        $switched = is_multisite() && get_current_blog_id() !== $blog_id;
-        if ($switched) switch_to_blog($blog_id);
+        TGS_Acc_Site::switch_to($blog_id);
         try {
             $body = TGS_Acc_Trade_Mapper::return_to_mirror($doc, [
                 'blog_id' => $blog_id, 'doc_id' => $return_id, 'version' => max(1, (int) ($data['version'] ?? 1)), 'user_id' => self::user_id((string) ($data['cashier']['name'] ?? '')),
@@ -237,7 +235,7 @@ final class TGS_Acc_Ketoan_Events
                 'via' => 'pos_react', 'exchange' => $exchange,
             ]);
         } finally {
-            if ($switched) restore_current_blog();
+            TGS_Acc_Site::restore();
         }
         if (is_wp_error($body)) return $body;
         $r = TGS_Acc_Ledger_Mirror::apply($body);
@@ -250,7 +248,7 @@ final class TGS_Acc_Ketoan_Events
     {
         $code = strtoupper(trim((string) $code));
         if ($code === '') return 0;
-        $blogs = is_multisite() ? array_map('intval', get_sites(['fields' => 'ids', 'number' => 0])) : [get_current_blog_id()];
+        $blogs = TGS_Acc_Site::blogs(false);
         foreach ($blogs as $b) {
             if (strtoupper((string) TGS_Acc_Source::shop_code($b)) === $code) return $b;
         }

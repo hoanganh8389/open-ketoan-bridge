@@ -166,7 +166,7 @@ class TGS_Acc_Warehouse_Sync
         // của tenant site chính. Blog chưa có kết nối thì bỏ qua; một blog tải hỏng không chặn blog khác, không ẩn phân kho của nó.
         $one = count($blog_ids) === 1;
         if (!$blog_ids) {
-            $blog_ids = is_multisite() ? array_map('intval', get_sites(['fields' => 'ids', 'number' => 0])) : [get_current_blog_id()];
+            $blog_ids = TGS_Acc_Site::blogs(false);
         }
         global $wpdb;
         $sum = ['sites' => 0, 'added' => 0, 'updated' => 0, 'hidden' => 0, 'failed' => 0];
@@ -210,7 +210,7 @@ class TGS_Acc_Warehouse_Sync
                     $sum['hidden']++;
                 }
             }
-            update_blog_option($blog, self::MAP . '_at', time());
+            TGS_Acc_Site::set($blog, self::MAP . '_at', time());
         }
         return $sum;
     }
@@ -219,7 +219,7 @@ class TGS_Acc_Warehouse_Sync
     public static function maybe_sync()
     {
         $blog = get_current_blog_id();
-        if (self::ready($blog) && time() - (int) get_blog_option($blog, self::MAP . '_at', 0) > self::STALE) {
+        if (self::ready($blog) && time() - (int) TGS_Acc_Site::opt($blog, self::MAP . '_at', 0) > self::STALE) {
             self::sync([$blog]);
         }
     }

@@ -31,6 +31,9 @@ function wp_mkdir_p($d) { return is_dir($d) || mkdir($d, 0777, true); }
 function wp_doing_cron() { return $GLOBALS['CRON']; }
 class WP_Error { public $m; function __construct($c = '', $m = '') { $this->m = $m; } function get_error_message() { return $this->m; } function get_error_data() { return null; } }
 function is_wp_error($x) { return $x instanceof WP_Error; }
+// [2026-11-23 02:20 AM] OKT-TOPO-2 — lớp bao kiểu cài thật; test này giả multisite (get_blog_option giả).
+if (!function_exists('is_multisite')) { function is_multisite() { return true; } }
+require_once dirname(__DIR__) . '/includes/class-tgs-acc-site.php';
 require dirname(__DIR__) . '/includes/class-tgs-acc-config.php';
 require dirname(__DIR__) . '/includes/class-tgs-acc-events.php';
 require dirname(__DIR__) . '/includes/class-tgs-acc-selfcheck.php';

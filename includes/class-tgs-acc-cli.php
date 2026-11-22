@@ -28,6 +28,7 @@ class TGS_Acc_Cli
     public static function status_data($blog_id)
     {
         $blog_id = (int) $blog_id;
+        TGS_Acc_Push_Log::maybe_install(); // OKT-TOPO-2: máy mới / một site chưa gửi lần nào → chưa có bảng nhật ký (đo okt-wp1: lỗi CSDL)
         TGS_Acc_Push_Log::use_consumer('');
         $s = TGS_Acc_Push_Log::blog_stats($blog_id);
         $q = TGS_Acc_Events::queue_of($blog_id);
@@ -288,7 +289,7 @@ class TGS_Acc_Cli
     public function selfcheck($args, $assoc)
     {
         if (!empty($assoc['all'])) {
-            $blogs = array_values(array_filter(array_map('intval', function_exists('get_sites') ? get_sites(['fields' => 'ids', 'number' => 0, 'deleted' => 0, 'archived' => 0, 'spam' => 0]) : [get_current_blog_id()]), function ($b) { return TGS_Acc_Config::key_mode($b) !== 'none'; }));
+            $blogs = array_values(array_filter(TGS_Acc_Site::blogs(), function ($b) { return TGS_Acc_Config::key_mode($b) !== 'none'; }));
         } else {
             $blogs = [self::blog_arg($assoc)];
         }

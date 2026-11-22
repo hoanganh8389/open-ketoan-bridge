@@ -540,7 +540,7 @@ class TGS_Acc_Pusher
                 return "Chi nhánh {$code} (khai ở tgs_acc_branch_code của blog {$blog_id}) chưa có ở tenant kế toán — tạo ở kế toán hoặc sửa mã";
             }
         } else {
-            $name = trim((string) get_blog_option((int) $blog_id, 'tgs_shop_name', '')) ?: (string) get_blog_option((int) $blog_id, 'blogname', '');
+            $name = trim((string) TGS_Acc_Site::opt((int) $blog_id, 'tgs_shop_name', '')) ?: (string) TGS_Acc_Site::opt((int) $blog_id, 'blogname', '');
             $ok = $client->ensure_branch($code, $name, 'blog:' . (int) $blog_id);
             if (is_wp_error($ok)) {
                 return "Không tạo được chi nhánh {$code} bên kế toán: " . $ok->get_error_message();

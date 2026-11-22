@@ -13,7 +13,7 @@ define('DAY_IN_SECONDS', 86400);
 define('TGS_ACC_BRIDGE_PATH', dirname(__DIR__) . '/');
 define('WP_CONTENT_DIR', sys_get_temp_dir() . '/tgs-acc-test-' . getmypid());
 
-$GLOBALS['NET'] = ['tgs_acc_bridge_config' => ['url' => 'https://kt.thu', 'key' => 'kt_thu']];
+$GLOBALS['NET'] = ['tgs_acc_bridge_config' => ['url' => 'https://kt.thu', 'key' => 'kt_thu'], 'tgs_acc_push_log_db' => '3']; // OKT-TOPO-2: bảng nhật ký đã cài (status_data gọi maybe_install)
 $GLOBALS['BLOG'] = [];
 $GLOBALS['NOW'] = date('Y-m-d H:i:s'); // đồng hồ thật: retry_state() đọc 7 ngày theo time()
 function apply_filters($tag, $v, ...$a) { return $v; }
@@ -98,6 +98,9 @@ class Fake_Client
 }
 
 foreach (['config', 'api-client', 'source', 'source-pos', 'mapper', 'push-log', 'pusher', 'gate', 'events', 'warehouse-sync', 'cli'] as $c) {
+    // [2026-11-23 02:20 AM] OKT-TOPO-2 — lớp bao kiểu cài thật; test này giả multisite (get_blog_option giả).
+    if (!function_exists('is_multisite')) { function is_multisite() { return true; } }
+    require_once TGS_ACC_BRIDGE_PATH . 'includes/class-tgs-acc-site.php';
     require_once TGS_ACC_BRIDGE_PATH . "includes/class-tgs-acc-{$c}.php";
 }
 

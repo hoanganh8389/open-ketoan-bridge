@@ -51,8 +51,8 @@ class TGS_Acc_Source
         $blog_id = (int) $blog_id;
         if (defined('TGS_ACC_SALE_SOURCE')) {
             $want = (string) TGS_ACC_SALE_SOURCE;
-        } elseif ($blog_id > 0 && function_exists('get_blog_option')) {
-            $want = (string) get_blog_option($blog_id, 'tgs_acc_sale_source', 'auto');
+        } elseif ($blog_id > 0) { // OKT-TOPO-2: TGS_Acc_Site đọc đúng cả ở một site (trước: điều kiện get_blog_option làm một site KHÔNG đọc được)
+            $want = (string) TGS_Acc_Site::opt($blog_id, 'tgs_acc_sale_source', 'auto');
         } else {
             $want = function_exists('get_option') ? (string) get_option('tgs_acc_sale_source', 'auto') : 'auto';
         }
@@ -191,8 +191,8 @@ class TGS_Acc_Source
         $code = '';
         if (defined('TGS_ACC_BRANCH_CODES') && is_array(TGS_ACC_BRANCH_CODES) && isset(TGS_ACC_BRANCH_CODES[$blog_id])) {
             $code = (string) TGS_ACC_BRANCH_CODES[$blog_id];
-        } elseif ($blog_id > 0 && function_exists('get_blog_option')) {
-            $code = (string) get_blog_option($blog_id, 'tgs_acc_branch_code', '');
+        } elseif ($blog_id > 0) { // OKT-TOPO-2: TGS_Acc_Site đọc đúng cả ở một site (trước: điều kiện get_blog_option làm một site KHÔNG đọc được)
+            $code = (string) TGS_Acc_Site::opt($blog_id, 'tgs_acc_branch_code', '');
         }
         $code = trim((string) apply_filters('tgs_acc_branch_code', $code, $blog_id));
         return strlen($code) > 32 ? '' : $code;
