@@ -207,5 +207,15 @@ unset($GLOBALS['BRANCH']);
 $r = TGS_Acc_Selfcheck::run(2, [], deps(new FakeClient(tenant_ok(['/api/v1/warehouses' => new WP_Error('x', 'hỏng')])), $POS));
 check('H2 không đọc được kho: không báo kho mặc định', strpos(implode(' ', array_column($r['checks'], 'message')), 'kho mặc định') === false);
 
+// 16. OKT-MA-TRAN: SC-9 lấy phiếu bán MỚI NHẤT (build_refs trả id tăng dần), không phải cũ nhất
+reset_state();
+$asc = [];
+foreach ([2, 5, 8, 11, 14, 140, 145, 150] as $id) { $asc[] = sale($id, [['taxCode' => 'R10']]); }
+$asc[] = pay(141, 'TM'); $asc[] = pay(151, 'TM');
+$sent = [];
+$cl = new FakeClient(tenant_ok(['preflight' => function ($b) use (&$sent) { $sent[] = $b['document']['docKey']; return ['findings' => []]; }]));
+$r = TGS_Acc_Selfcheck::run(2, [], deps($cl, $asc));
+check('SC-9 preflight 5 phiếu bán mới nhất', $sent === ['btsoft:2:sale:150', 'btsoft:2:sale:145', 'btsoft:2:sale:140', 'btsoft:2:sale:14', 'btsoft:2:sale:11']);
+
 echo ($fail ? 'KẾT QUẢ: SAI ' : 'KẾT QUẢ: ĐẠT ') . "{$ok}/" . ($ok + $fail) . "\n";
 exit($fail ? 1 : 0);

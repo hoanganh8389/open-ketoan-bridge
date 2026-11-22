@@ -165,7 +165,13 @@ class TGS_Acc_Selfcheck
         if (!$docs) {
             self::add($c, 'SC-9', 'warn', 'Chưa có phiếu nào dựng được chứng từ' . (!empty($built['failed']) ? ' (' . implode('; ', array_slice((array) $built['failed'], 0, 3)) . ')' : ' — bán một đơn rồi chạy lại'), ['scanned' => count($ids)]);
         } else {
-            usort($docs, function ($a, $b) { return ($a['docType'] === 'sale' ? 0 : 1) - ($b['docType'] === 'sale' ? 0 : 1); });
+            // [2026-11-22 09:00 PM Johnny Chu - Chu Hoàng Anh] OKT-MA-TRAN — phiếu bán trước, rồi MỚI NHẤT trước. build_refs trả theo id tăng
+            // dần → trước đây preflight luôn chạy trên các đơn CŨ NHẤT của khoảng quét (đo thật: sale:2,5,8,11,14 khi shop đã có 150 phiếu).
+            usort($docs, function ($a, $b) {
+                $s = ($a['docType'] === 'sale' ? 0 : 1) - ($b['docType'] === 'sale' ? 0 : 1);
+                $n = function ($d) { return (int) preg_replace('/^.*:/', '', (string) ($d['docKey'] ?? '')); }; // btsoft:{blog}:{loại}:{id}
+                return $s ?: ($n($b) - $n($a));
+            });
             $blocks = $warns = 0;
             $seen = [];
             $denied = false;
