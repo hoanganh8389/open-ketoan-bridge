@@ -171,6 +171,8 @@ TGS_Acc_Events::resume(2);
 $GLOBALS['NOW'] = $saved_now;
 // Danh mục kho đã đồng bộ trước (TGS_Acc_Warehouse_Sync dùng bản nhớ, không gọi mạng).
 $GLOBALS['NET']['tgs_acc_warehouse_map'] = ['at' => time(), 'branches' => ['CN01' => []]];
+// [2026-11-22 06:30 PM Johnny Chu - Chu Hoàng Anh] OKT-CAU-DAO — đệm kho nay theo kết nối của blog (URL + khoá, I-1).
+$GLOBALS['NET']['tgs_acc_warehouse_map_' . TGS_Acc_Api_Client::for_blog(2)->identity()] = ['at' => time(), 'branches' => ['CN01' => []]];
 
 // ── P6 preflight một phiếu ──────────────────────────────────────────────────
 echo "P6 wp tgs-acc preflight\n";

@@ -41,6 +41,11 @@ class TGS_Acc_Cli
         if ($s['pending_over_24h'] > 0) {
             $warn[] = $s['pending_over_24h'] . ' chứng từ chờ định khoản quá 24 giờ — báo kế toán duyệt ở ACC14';
         }
+        // [2026-11-22 06:10 PM Johnny Chu - Chu Hoàng Anh] OKT-CAU-DAO — cầu dao mở: đang không gửi trong request.
+        $br = TGS_Acc_Events::breaker($blog_id);
+        if (TGS_Acc_Events::breaker_open($blog_id)) {
+            $warn[] = 'Cầu dao mở tới ' . wp_date('H:i:s', (int) $br['until']) . ' (lần ' . (int) $br['fails'] . '): kế toán không tới được — ' . $br['msg'] . '; đơn xếp hàng, cron thử lại';
+        }
         if (($by['remote_error'] ?? 0) > 0) {
             $warn[] = $by['remote_error'] . ' chứng từ kế toán định khoản lỗi — xem lời kế toán trong nhật ký gửi';
         }
@@ -57,6 +62,7 @@ class TGS_Acc_Cli
             'sale_source'      => TGS_Acc_Source::sale_source($blog_id),
             'branch_code'      => TGS_Acc_Source::branch_of_blog($blog_id),
             'key_mode'         => TGS_Acc_Config::key_mode($blog_id),
+            'breaker'          => TGS_Acc_Events::breaker_open($blog_id) ? $br : null,
             'warnings'         => $warn,
         ];
     }

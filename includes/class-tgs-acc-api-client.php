@@ -19,6 +19,16 @@ class TGS_Acc_Api_Client
     /** @var int giây chờ riêng cho lượt gọi (0 = theo Cài đặt) */
     private $timeout = 0;
 
+    // [2026-11-22 06:30 PM Johnny Chu - Chu Hoàng Anh] OKT-CAU-DAO — thời gian chờ cho cả request hiện tại (gửi tức thời đặt 5 s rồi trả lại 0).
+    /** @var int */
+    public static $request_timeout = 0;
+
+    /** Định danh kết nối (URL + khoá) — để đệm theo đúng tenant (I-1), không lộ khoá. */
+    public function identity()
+    {
+        return substr(md5($this->base . '|' . $this->key), 0, 12);
+    }
+
     public function __construct($base = '', $key = '')
     {
         $this->base = rtrim($base !== '' ? $base : TGS_Acc_Config::url(), '/');
@@ -258,7 +268,7 @@ class TGS_Acc_Api_Client
         }
         $args = [
             'method'  => $method,
-            'timeout' => $this->timeout ?: ((int) TGS_Acc_Config::get('timeout') ?: 60),
+            'timeout' => $this->timeout ?: (self::$request_timeout ?: ((int) TGS_Acc_Config::get('timeout') ?: 60)),
             'headers' => ['X-Api-Key' => $this->key, 'Accept' => 'application/json'],
         ];
         if ($body !== null) {
