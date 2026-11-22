@@ -61,7 +61,7 @@ function deps($client, array $docs, array $status = [], array $queue = [])
 {
     global $NOW;
     return [
-        'client' => $client, 'now' => $NOW,
+        'client' => $client, 'now' => $NOW, 'map_ready' => $GLOBALS['MAP_READY'] ?? true,
         'ids'    => function () use ($docs) { return $docs ? [10, 11] : []; },
         'build'  => function () use ($docs) { return ['docs' => $docs, 'failed' => []]; },
         'status' => function () use ($status) { return $status + ['pending_over_24h' => 0, 'errors' => 0, 'paused' => false]; },
@@ -182,6 +182,12 @@ check('used_codes: bỏ mã rỗng', $u['warehouses'] === [] && $u['reasons'] ==
 reset_state(); $GLOBALS['KEYMODE'][2] = 'legacy';
 $r = TGS_Acc_Selfcheck::run(2, [], deps(new FakeClient(tenant_ok()), $GOOD_DOCS));
 check('khoá chung: SC-1 warn', lvl($r, 'SC-1') === 'warn');
+
+// 14. S001-MD3: chưa có bảng ánh xạ → SC-5 thêm dòng vàng, không đỏ
+reset_state(); $GLOBALS['MAP_READY'] = false;
+$r = TGS_Acc_Selfcheck::run(2, ['confirm_tenant' => true], deps(new FakeClient(tenant_ok()), $GOOD_DOCS));
+check('không bảng ánh xạ: SC-5 pass + warn', lvl($r, 'SC-5') === 'pass,warn' && $r['verdict'] === 'warn');
+$GLOBALS['MAP_READY'] = true;
 
 echo ($fail ? 'KẾT QUẢ: SAI ' : 'KẾT QUẢ: ĐẠT ') . "{$ok}/" . ($ok + $fail) . "\n";
 exit($fail ? 1 : 0);
