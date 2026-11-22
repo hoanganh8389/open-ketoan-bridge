@@ -8,6 +8,8 @@
  *                       [--no-post] [--json]            (POST /api/v1/intake/preflight — không ghi sự việc, không vào sổ)
  *   wp tgs-acc pause     --blog=<id>                    tạm dừng kết nối của shop (giữ khoá; vẫn ghi sự kiện, không gửi)
  *   wp tgs-acc resume    --blog=<id> [--now]            bỏ tạm dừng; --now: gửi bù hàng chờ ngay (không chờ cron)
+ *   wp tgs-acc selfcheck --blog=<id> | --all            tự kiểm cặp blog → tenant qua API (SC-1…SC-11, luật I-8)
+ *                       [--confirm-tenant] [--samples=5] [--format=table|json]   thoát 0 = xanh / vàng, 1 = có đỏ
  *
  * Lớp chỉ đọc sổ POS (qua TGS_Acc_Pusher / TGS_Acc_Source). Không ghi sổ POS (ADR-OKT-1 I-0).
  *
@@ -198,6 +200,56 @@ class TGS_Acc_Cli
             return;
         }
         WP_CLI::success("Đã bỏ tạm dừng shop #{$blog}; {$q['groups']} nhóm trong hàng chờ sẽ gửi ở lượt cron kế tiếp (thêm --now để gửi ngay).");
+    }
+
+    // [2026-11-22 11:30 AM Johnny Chu - Chu Hoàng Anh] OKT-SC-1 — lệnh tự kiểm (luật I-8).
+    /**
+     * Tự kiểm cặp blog → tenant qua API (SC-1…SC-11). Không ghi kế toán (preflight save:false), không ghi sổ POS.
+     *
+     * ## OPTIONS
+     * [--blog=<id>]
+     * : Shop.
+     * [--all]
+     * : Mọi blog có khoá (riêng hoặc chung).
+     * [--confirm-tenant]
+     * : Lưu mã tenant đang thấy làm mã đã xác nhận của blog (lần đầu).
+     * [--samples=<n>]
+     * : Số chứng từ mẫu gửi preflight (mặc định 5).
+     * [--format=<f>]
+     * : table (mặc định) | json.
+     */
+    public function selfcheck($args, $assoc)
+    {
+        if (!empty($assoc['all'])) {
+            $blogs = array_values(array_filter(array_map('intval', function_exists('get_sites') ? get_sites(['fields' => 'ids', 'number' => 0, 'deleted' => 0, 'archived' => 0, 'spam' => 0]) : [get_current_blog_id()]), function ($b) { return TGS_Acc_Config::key_mode($b) !== 'none'; }));
+        } else {
+            $blogs = [self::blog_arg($assoc)];
+        }
+        $opts = ['confirm_tenant' => !empty($assoc['confirm-tenant']), 'samples' => (int) ($assoc['samples'] ?? TGS_Acc_Selfcheck::SAMPLES)];
+        $all = [];
+        $worst = 0;
+        foreach ($blogs as $b) {
+            $r = TGS_Acc_Selfcheck::run($b, $opts);
+            $all[] = $r;
+            $worst = max($worst, $r['verdict'] === 'fail' ? 1 : 0);
+            if (($assoc['format'] ?? 'table') === 'json') {
+                continue;
+            }
+            $icon = ['pass' => '🟢', 'warn' => '🟡', 'fail' => '🔴'];
+            WP_CLI::line("{$icon[$r['verdict']]} Shop #{$b} → tenant " . ($r['tenant'] ?: '?') . "  ({$r['at']})");
+            foreach ($r['checks'] as $ck) {
+                WP_CLI::line('   ' . $icon[$ck['level']] . ' ' . str_pad($ck['id'], 6) . ' ' . $ck['message']);
+            }
+        }
+        if (($assoc['format'] ?? 'table') === 'json') {
+            WP_CLI::line(wp_json_encode(count($all) === 1 ? $all[0] : $all, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+        }
+        if (!$blogs) {
+            WP_CLI::warning('Không có blog nào có khoá kế toán.');
+        }
+        if ($worst) {
+            WP_CLI::halt(1);
+        }
     }
 
     private static function blog_arg($assoc)
