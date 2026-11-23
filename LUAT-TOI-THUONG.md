@@ -15,6 +15,17 @@ Tệp này nằm ở gốc repo để người và agent (CLAUDE.md nạp tệp 
 >
 > Ở repo này: mọi mã chạm khoá, tenant, kết nối kế toán đi theo **nhánh mô hình** đã khai (bizcity · nhiều cửa hàng · một cửa hàng); không suy tenant / pháp nhân từ khoá hay từ blog id.
 
+<!-- [2026-11-23 11:59 PM Johnny Chu - Chu Hoàng Anh] OKT-P-0 ý 4 — chủ chốt vai trò ba lớp: open-pos tự đứng, tsm là dữ liệu đệm, bridge đưa dữ liệu open-ketoan vào tsm. -->
+## Luật tối thượng P-0 ý 4 — vai trò ba lớp (chủ, 23/11)
+
+> "Khi tsm tắt: POS vẫn chạy, đọc bảng mạng như cũ, không lỗi. Còn khi bật tsm thì việc quản lý thông tin hệ thống, hàng hóa, danh mục, nhóm hàng, thuế ... sẽ giúp cho POS có thêm dữ liệu buffer để linh hoạt hơn chủ động hơn. Nếu có thêm open-ketoan active qua bridge, thì thay vì người nhập, sẽ là lấy từ open-ketoan về."
+
+- open-pos **tự đứng**: tắt tsm (open-pos-backend) thì quầy vẫn bán, đọc bảng mạng như cũ, không lỗi.
+- tsm là lớp **dữ liệu đệm** của POS: thông tin hệ thống, hàng hoá, danh mục, nhóm hàng, thuế, giá, ĐVT — giúp POS linh hoạt, chủ động (vẫn bán khi kế toán dừng). Không có kế toán thì người nhập tay vào tsm.
+- bridge là **kênh**: open-ketoan chạy và nối qua bridge thì dữ liệu đó **lấy từ open-ketoan về**, ghi vào chính các bảng của tsm, thay cho người nhập. Bridge không bán, không ghi thẳng vào POS.
+- Phụ thuộc **một chiều**: open-pos ← tsm ← bridge ← open-ketoan. Lớp trên tắt, lớp dưới vẫn chạy. Mọi lời gọi từ lớp dưới lên lớp trên phải có **đường lùi** (vd `tgs_catalog_table` dự phòng ở open-pos); review luôn hỏi "tắt tsm thì POS còn bán không?", "tắt bridge thì tsm còn nhập tay được không?"
+- **Ở repo này (bridge):** bridge kéo danh mục / giá / thuế từ open-ketoan và ghi qua tsm (bảng `tgs_catalog_table()`), không ghi thẳng vào bảng hay luồng bán của POS; bridge tắt hoặc kế toán dừng thì tsm vẫn nhập tay được, POS vẫn bán (I-3).
+
 ## Áp dụng ở repo này
 
 - Mọi chỗ chạm khoá, URL, tenant đi qua **hồ sơ mô hình** (`TGS_Acc_Profile::current()` = bizcity · chain · single — việc OKT-TOPO-9), không suy từ khoá đang có.
