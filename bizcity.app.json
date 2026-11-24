@@ -1,5 +1,5 @@
 {
-  "schema": "bizcity_app@1-draft",
+  "schema": "bizcity_app@1",
   "id": "open-ketoan-bridge",
   "name": "Open Kế Toán Bridge",
   "repo": "hoanganh8389/open-ketoan-bridge",
@@ -15,7 +15,7 @@
     "pull_via": "open-ketoan",
     "push_via": "open-ketoan"
   },
-  "contracts": ["bizcity_spine@1-draft", "bizcity_ledger_intake@1", "bizcity_master_data@1", "bizcity_item_master@1"],
+  "contracts": ["bizcity_spine@1", "bizcity_ledger_intake@1", "bizcity_master_data@1", "bizcity_item_master@1"],
   "docs": { "canon": "docs/canon/README.md" },
   "notes": "Kênh, không phải chủ: kéo changefeed danh mục từ open-ketoan ghi vào bảng tsm; gửi sau chứng từ bán của POS với Idempotency-Key = doc_ref@version; chạy phép đối chiếu theo cặp blog → tenant (I-8). Không bán, không ghi thẳng vào POS."
 }
