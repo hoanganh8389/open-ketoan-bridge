@@ -8,8 +8,11 @@
  *     sang ERP đúng màn đó (redirect_old_view, chạy ở admin_init).
  *   - ĐĂNG NHẬP ERP BẰNG TÀI KHOẢN WORDPRESS (WordPress multisite là gốc tài khoản + phân quyền):
  *       open_url($path) = admin-post.php?action=tgs_acc_sso_go&return=<ERP + path> → cấp VÉ ngắn hạn rồi quay lại ERP
- *       (#sso=…). Vé = base64url(JSON {email, name, login, perms, tenant, iat, exp}) . base64url(HMAC-SHA256, khoá chung).
- *       ERP (POST /api/v1/auth/wp-sso) kiểm chữ ký, tìm / tạo người dùng theo email, cấp phiên đúng `perms`.
+ *       (#sso=…). Vé = base64url(JSON {sub, aud, email, name, login, perms, tenant, iat, exp}) . base64url(HMAC-SHA256, khoá chung).
+ *       ERP (POST /api/v1/auth/wp-sso) kiểm chữ ký, tìm người dùng theo `sub` (= wp:<ID người dùng WordPress>) rồi theo email,
+ *       tạo nếu chưa có, cấp phiên đúng `perms`. `aud` = tên app đích (TGS_KETOAN_SSO_AUD, mặc định open-ketoan).
+ *       [2026-11-24 11:10 PM Johnny Chu - Chu Hoàng Anh] SPINE-6 — bizcity_identity@1 (chủ duyệt 2026-11-24, bizcity-platform docs/standard/BIZCITY-IDENTITY-v1.md): thêm sub + aud.
+ *       ERP cũ (chưa cập nhật) bỏ qua hai trường lạ nên gửi vé mới sang ERP cũ vẫn đăng nhập được.
  *       Mở thẳng ERP mà chưa đăng nhập: ERP chuyển sang chính địa chỉ này (WP_SSO_LOGIN_URL bên ERP).
  *     `perms` lấy từ tgs_permission (các mục "Kế toán - …", PERM_MAP). Quản trị mạng = mọi quyền.
  *     Khoá chung: Cổng kế toán → "Khoá đăng nhập bằng tài khoản WordPress" (hoặc TGS_KETOAN_SSO_SECRET) = WP_SSO_SECRET bên ERP.
@@ -154,6 +157,9 @@ class TGS_Acc_Embed
         }
         $now = time();
         $body = self::b64url(wp_json_encode([
+            // [2026-11-24 11:10 PM Johnny Chu - Chu Hoàng Anh] SPINE-6 — danh tính WordPress ổn định (email đổi được, ID người dùng không đổi); ERP khớp người dùng theo đây trước.
+            'sub'    => 'wp:' . (int) $u->ID,
+            'aud'    => TGS_Acc_Config::sso_aud(),
             'email'  => strtolower((string) $u->user_email),
             'name'   => (string) ($u->display_name ?: $u->user_login),
             'login'  => (string) $u->user_login,

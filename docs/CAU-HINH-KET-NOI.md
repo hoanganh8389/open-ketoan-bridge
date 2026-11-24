@@ -67,6 +67,7 @@ Ba tầng, đọc từ trên xuống, gặp giá trị đầu tiên thì dừng.
 | `key_legacy` (khoá cũ của tenant chung) | M, hoặc hằng `TGS_KETOAN_API_KEY` trên multisite | Chỉ dùng để **đẩy chứng từ** trong giai đoạn chuyển tiếp (§6). Không làm `tgs_okt_connected` thành "Có" |
 | `timeout`, `chunk_days`, `realtime` | H → B → M | |
 | `sso_secret`, `sso_tenant` | H → M | Đăng nhập kế toán bằng tài khoản WP: cấp mạng. `sso_tenant` sẽ thành theo blog khi có tenant theo blog |
+| `TGS_KETOAN_SSO_AUD` (hằng, tuỳ chọn) | M | Tên app đích trong vé SSO (`aud`); mặc định `open-ketoan`, phải bằng `WP_SSO_AUD` bên phần mềm kế toán. Vé luôn mang thêm `sub` = `wp:<ID người dùng WordPress>`. <!-- [2026-11-24 11:10 PM Johnny Chu - Chu Hoàng Anh] SPINE-6 --> |
 | `tax_url`, `tax_key` (sổ thuế) | H → B → M | Sổ thuế cũng là một tenant: theo blog như `key` |
 | `gate_key` (cổng chờ cho kế toán kéo chứng từ) | M | Cấp mạng; ở §5 có cách kế toán chỉ thấy blog của tenant mình |
 | `catalog_from_erp` | — | **Bỏ.** Thay bằng `tgs_okt_connected()` (R-OKT-CONN-1) |

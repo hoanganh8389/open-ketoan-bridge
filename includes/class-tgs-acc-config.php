@@ -240,6 +240,17 @@ class TGS_Acc_Config
     }
 
     /**
+     * Tên app đích ghi vào vé (`aud`) — phải bằng WP_SSO_AUD bên phần mềm kế toán (mặc định cả hai bên: open-ketoan).
+     * Hằng TGS_KETOAN_SSO_AUD đổi được khi bên kế toán đặt WP_SSO_AUD khác.
+     * [2026-11-24 11:10 PM Johnny Chu - Chu Hoàng Anh] SPINE-6 — bizcity_identity@1 (chủ duyệt 2026-11-24): vé có aud sai bị ERP từ chối, nên không để trống / đổi tuỳ tiện.
+     */
+    public static function sso_aud()
+    {
+        $aud = defined('TGS_KETOAN_SSO_AUD') ? trim((string) TGS_KETOAN_SSO_AUD) : '';
+        return $aud !== '' ? $aud : 'open-ketoan';
+    }
+
+    /**
      * Khoá dùng cho lượt gọi trong ngữ cảnh hiện tại (giữ hành vi cũ cho mọi nơi đang gọi):
      * khoá riêng của blog hiện tại nếu có, không thì khoá chung của mạng (giai đoạn chuyển tiếp).
      * Câu hỏi "blog đã kết nối chưa" KHÔNG dùng hàm này — dùng key_for().
