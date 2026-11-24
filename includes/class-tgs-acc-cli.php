@@ -213,6 +213,30 @@ class TGS_Acc_Cli
     }
 
     /**
+     * [2026-11-24 09:40 PM Johnny Chu - Chu Hoàng Anh] SW4b-2 — kiểm thử danh mục của shop ở kế toán (POST /catalog/products/import
+     * dryRun = true): kế toán kiểm từng dòng, không ghi gì. In tổng và các dòng lỗi.
+     *
+     * ## OPTIONS
+     * --shop=<id>
+     * : Shop.
+     * [--limit=<n>]
+     * : Số dòng lỗi in ra (mặc định 50).
+     */
+    public function dryrun($args, $assoc)
+    {
+        $blog = self::blog_arg($assoc);
+        $r = TGS_Acc_Catalog_Dryrun::run($blog);
+        foreach ($r['errors'] as $e) {
+            WP_CLI::warning($e);
+        }
+        foreach (array_slice($r['rows'], 0, (int) ($assoc['limit'] ?? 50)) as $x) {
+            WP_CLI::log(sprintf('  dòng %d  %s  — %s', $x['row'], $x['sku'], implode(' · ', $x['errors'])));
+        }
+        $sum = "{$r['total']} mã · {$r['create']} sẽ thêm · {$r['update']} sẽ sửa · {$r['failed']} lỗi";
+        $r['ok'] ? WP_CLI::success("Shop #{$blog}: {$sum} — sẵn sàng đẩy") : WP_CLI::error("Shop #{$blog}: {$sum}", false);
+    }
+
+    /**
      * Bỏ tạm dừng kết nối của shop.
      *
      * ## OPTIONS
