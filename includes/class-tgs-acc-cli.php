@@ -190,6 +190,29 @@ class TGS_Acc_Cli
     }
 
     /**
+     * [2026-11-24 08:40 PM Johnny Chu - Chu Hoàng Anh] SW4b-1 — dựng sẵn tenant trước lần đẩy danh mục đầu: cây nhóm có mã SKU,
+     * bảng giá công ty + bảng giá của shop, chi nhánh, gán chi nhánh. Mặc định chỉ xem kế hoạch (chỉ GET).
+     *
+     * ## OPTIONS
+     * --shop=<id>
+     * : Shop.
+     * [--run]
+     * : Ghi thật lên kế toán (không có = chạy thử, chỉ in kế hoạch).
+     */
+    public function prepare($args, $assoc)
+    {
+        $blog = self::blog_arg($assoc);
+        $r = TGS_Acc_Tenant_Prepare::run($blog, empty($assoc['run']));
+        foreach (['plan' => 'sẽ làm', 'done' => 'đã làm', 'skipped' => 'bỏ qua', 'notes' => 'lưu ý', 'errors' => 'LỖI'] as $k => $label) {
+            foreach ($r[$k] as $line) {
+                WP_CLI::log("  [{$label}] {$line}");
+            }
+        }
+        $sum = count($r['plan']) . ' việc sẽ làm · ' . count($r['done']) . ' đã làm · ' . count($r['skipped']) . ' đã có · ' . count($r['errors']) . ' lỗi';
+        $r['ok'] ? WP_CLI::success(($r['dry'] ? 'Chạy thử — ' : '') . "Shop #{$blog}: {$sum}" . ($r['dry'] && $r['plan'] ? '. Ghi thật: thêm --run' : '')) : WP_CLI::error("Shop #{$blog}: {$sum}", false);
+    }
+
+    /**
      * Bỏ tạm dừng kết nối của shop.
      *
      * ## OPTIONS

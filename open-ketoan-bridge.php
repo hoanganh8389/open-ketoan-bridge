@@ -75,6 +75,7 @@ require_once TGS_ACC_BRIDGE_PATH . 'includes/class-tgs-acc-code-map.php'; // [20
 require_once TGS_ACC_BRIDGE_PATH . 'includes/class-tgs-acc-selfcheck.php';
 require_once TGS_ACC_BRIDGE_PATH . 'includes/class-tgs-acc-reconcile.php'; // [2026-11-22 09:45 PM Johnny Chu - Chu Hoàng Anh] OKT-H4 — đối chiếu WP ↔ kế toán (chỉ đọc), SC-12
 require_once TGS_ACC_BRIDGE_PATH . 'includes/class-tgs-acc-trace.php'; // [2026-11-22 03:10 PM Johnny Chu - Chu Hoàng Anh] OKT-TRACE — trace chiều bán của một phiếu (chỉ đọc) // [2026-11-22 11:30 AM Johnny Chu - Chu Hoàng Anh] OKT-SC-1 — tự kiểm theo cặp blog → tenant qua API (luật I-8)
+require_once TGS_ACC_BRIDGE_PATH . 'includes/class-tgs-acc-tenant-prepare.php'; // [2026-11-24 08:40 PM Johnny Chu - Chu Hoàng Anh] SW4b-1 — dựng sẵn tenant (cây nhóm có mã SKU, bảng giá, chi nhánh)
 require_once TGS_ACC_BRIDGE_PATH . 'includes/class-tgs-acc-cli.php'; // [2026-11-21 09:00 PM Johnny Chu - Chu Hoàng Anh] S002-8, 11, 13 — wp tgs-acc status / preflight / pause / resume
 require_once TGS_ACC_BRIDGE_PATH . 'includes/class-tgs-acc-embed.php';
 require_once TGS_ACC_BRIDGE_PATH . 'includes/class-tgs-acc-catalog-sync.php'; // danh mục hàng lấy từ phần mềm kế toán
