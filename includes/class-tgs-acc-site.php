@@ -41,14 +41,15 @@ class TGS_Acc_Site
         return function_exists('get_main_site_id') ? (int) get_main_site_id() : 1;
     }
 
-    /** Blog có trên bản cài này không (một site: chỉ blog hiện tại). */
+    // [2026-11-24 04:40 PM Johnny Chu - Chu Hoàng Anh] SW3-4 — dùng thêm ở hàng chờ gửi lại (đóng nhóm của blog đã gỡ): không hỏi được (thiếu get_blog_details) thì coi là CÒN — không bao giờ đóng nhầm việc của blog đang sống.
+    /** Blog có trên bản cài này không (một site: chỉ blog hiện tại). Blog đánh dấu lưu trữ / xoá mềm vẫn tính là có (còn bảng). */
     public static function exists($blog_id)
     {
         $blog_id = (int) $blog_id;
         if ($blog_id <= 0) {
             return false;
         }
-        return self::is_ms() ? (bool) get_blog_details($blog_id) : $blog_id === self::current();
+        return self::is_ms() ? (!function_exists('get_blog_details') || (bool) get_blog_details($blog_id)) : $blog_id === self::current();
     }
 
     /** Option của blog. Một site: option của site nếu đúng blog hiện tại, không thì $default. */

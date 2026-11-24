@@ -717,8 +717,15 @@ class TGS_Acc_Events
         $done = 0;
         $ok = 0;
         $date = self::today();
+        // [2026-11-24 04:40 PM Johnny Chu - Chu Hoàng Anh] SW3-4 — blog đã gỡ khỏi mạng: đóng nhóm (gave_up 'blog_gone'), không đọc option của blog không còn bảng.
+        // Trước đây nhóm của blog đã xoá không bao giờ đóng (blog "chưa có khoá" → giữ), mỗi phút vài trăm truy vấn lỗi wp_N_options (bắt khi chạy ca vàng G5 ở okt-wp).
+        // Blog chỉ đánh dấu lưu trữ / xoá mềm vẫn còn (TGS_Acc_Site::exists) → giữ nguyên trong hàng chờ (khôi phục được).
         foreach (self::retry_state() as $rid => $r) {
             if (!empty($r['closed']) || (!$force && (int) ($r['next'] ?? 0) > time())) {
+                continue;
+            }
+            if (TGS_Acc_Site::is_ms() && (int) ($r['blog'] ?? 0) > 0 && !TGS_Acc_Site::exists((int) $r['blog'])) {
+                self::append($date, [['t' => self::now(), 'rid' => $rid, 'gave_up' => 1, 'n' => (int) ($r['n'] ?? 1), 'msg' => 'blog_gone: blog ' . (int) $r['blog'] . ' không còn trong mạng']], 'retry');
                 continue;
             }
             // [2026-11-21 09:00 PM Johnny Chu - Chu Hoàng Anh] S002-13 — shop tạm dừng: để nguyên trong hàng chờ, không gửi, không tăng số lần thử.
