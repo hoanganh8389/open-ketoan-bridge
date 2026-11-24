@@ -30,6 +30,14 @@
  *                        với tgs_cache) + bật các chốt sẵn có (filter tgs_catalog_readonly, tgs_price_edit_locked).
  *   routes()             POST /wp-json/tgs-acc/v1/catalog-changed: kế toán báo vừa đổi → kéo về ngay (khoá cổng chờ).
  *
+ * SW3 (24/11/2026) — khoá THEO NGUỒN CỦA TỪNG BLOG (tsm `tgs_catalog_source`, ADR-OKT-1 D001-19), không khoá cả mạng nữa:
+ *   source_default()     bật kéo danh mục + blog đã nối kế toán + blog đang đọc bảng mạng (cờ tgs_catalog_store = global — đúng bảng
+ *                        được kéo về) → nguồn mặc định `ketoan`. Admin đã chọn rõ nguồn (option của blog) thì giữ lựa chọn đó.
+ *                        Blog cờ `local` (bảng riêng, vd blog mới) không nhận dữ liệu kéo về → giữ `local`, không bị khoá.
+ *   locked_here()        khoá màn sửa / chặn AJAX ghi chỉ khi blog đang xem có nguồn `ketoan`. tsm cũ chưa có tgs_catalog_source
+ *                        → khoá như trước (cả mạng).
+ *   connected()          trả lời tsm `tgs_okt_connected` theo kết nối của blog (TGS_Acc_Config::ready_for) — chỉ để hiện trạng thái.
+ *
  * Thêm trường mới: thêm cột ở ERP (products) → map ở product_row() (kéo về) và import_products() (nạp ban đầu).
  *
  * @package tgs_accounting_bridge
@@ -104,6 +112,8 @@ class TGS_Acc_Catalog_Sync
         });
         add_action('wp_ajax_tgs_acc_catalog_sync', [__CLASS__, 'ajax_sync']);
         add_action('rest_api_init', [__CLASS__, 'routes']);
+        // [2026-11-24 02:40 AM Johnny Chu - Chu Hoàng Anh] SW3 — khoá / nguồn theo TỪNG BLOG (tsm tgs_catalog_source, D001-19; chủ chốt 24/11: blog đã nối → mặc định ketoan).
+        add_filter('tgs_okt_connected', [__CLASS__, 'connected'], 10, 2);
         if (!self::enabled()) {
             add_action('init', static function () {
                 wp_clear_scheduled_hook(self::CRON);
@@ -115,9 +125,10 @@ class TGS_Acc_Catalog_Sync
                 wp_schedule_event(time() + 60, 'tgs_acc_5min', self::CRON);
             }
         });
-        // Khoá sửa bên này — các plugin đã có sẵn chốt, chỉ cần bật.
-        add_filter('tgs_catalog_readonly', '__return_true');
-        add_filter('tgs_price_edit_locked', '__return_true');
+        // Khoá sửa bên này — các plugin đã có sẵn chốt, chỉ cần bật. // [2026-11-24 02:40 AM Johnny Chu - Chu Hoàng Anh] SW3 — khoá / nguồn theo TỪNG BLOG (tsm tgs_catalog_source, D001-19; chủ chốt 24/11: blog đã nối → mặc định ketoan).
+        add_filter('tgs_catalog_source_default', [__CLASS__, 'source_default'], 10, 2);
+        add_filter('tgs_catalog_readonly', [__CLASS__, 'locked_here']);
+        add_filter('tgs_price_edit_locked', [__CLASS__, 'locked_here']);
         $msg = static function () {
             return self::MSG_LOCKED;
         };
@@ -128,10 +139,42 @@ class TGS_Acc_Catalog_Sync
         add_action('admin_init', [__CLASS__, 'block_writes'], 1);
     }
 
+    /** Blog có nối kế toán (để tsm hiện 🟢 / 🔴). */
+    public static function connected($connected, $blog_id = 0)
+    {
+        $blog_id = (int) $blog_id ?: (int) get_current_blog_id();
+        return (bool) $connected || ($blog_id > 0 && TGS_Acc_Config::ready_for($blog_id));
+    }
+
+    /** Nguồn mặc định của blog khi admin chưa chọn: blog đã nối + đọc bảng mạng được kéo về → ketoan. */
+    public static function source_default($default, $blog_id = 0)
+    {
+        $blog_id = (int) $blog_id ?: (int) get_current_blog_id();
+        if (!self::enabled() || $blog_id <= 0 || !TGS_Acc_Config::ready_for($blog_id)) {
+            return $default;
+        }
+        if (class_exists('TGS_Catalog_Store') && TGS_Catalog_Store::store($blog_id) !== 'global') {
+            return $default; // bảng riêng của blog — dữ liệu kéo về (bảng mạng) không tới đây
+        }
+        return 'ketoan';
+    }
+
+    /** Khoá sửa danh mục ở blog đang xem? tsm cũ (chưa có nguồn theo blog) → khoá như trước. */
+    public static function locked_here($locked = false)
+    {
+        if (!self::enabled()) {
+            return (bool) $locked;
+        }
+        if (!function_exists('tgs_catalog_source')) {
+            return true;
+        }
+        return (bool) $locked || tgs_catalog_source((int) get_current_blog_id()) === 'ketoan';
+    }
+
     /** Request AJAX đang ghi danh mục hàng → trả lỗi, chỉ đường sang kế toán. */
     public static function block_writes()
     {
-        if (!wp_doing_ajax()) {
+        if (!wp_doing_ajax() || !self::locked_here()) {
             return;
         }
         $action = sanitize_key($_REQUEST['action'] ?? '');
