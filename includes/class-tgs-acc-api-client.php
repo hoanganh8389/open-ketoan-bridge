@@ -162,6 +162,14 @@ class TGS_Acc_Api_Client
         return is_wp_error($res) ? $res : (array) $res['data'];
     }
 
+    // [2026-11-24 08:40 PM Johnny Chu - Chu Hoàng Anh] SW4b-1 — dựng sẵn tenant: PUT nhóm hàng (?new=1), bảng giá, gán chi nhánh.
+    /** Gửi một lệnh ghi PUT JSON. @return array|WP_Error `data` của phản hồi */
+    public function put_json($path, array $body)
+    {
+        $res = $this->request('PUT', $path, $body);
+        return is_wp_error($res) ? $res : (array) ($res['data'] ?? []);
+    }
+
     /**
      * Như get() nhưng chờ ngắn (8 giây): màn POS gọi khi mở trang (danh mục chi nhánh, ngân hàng, lý do; xác nhận nhận
      * tiền), kế toán không trả lời thì trang vẫn mở được. @return array|WP_Error ['data' => …, 'meta' => …]
