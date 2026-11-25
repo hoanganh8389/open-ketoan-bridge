@@ -65,7 +65,7 @@ class TGS_Acc_Switch
     }
 
     /**
-     * @param array $deps test: ['client' => api, 'readiness' => callable, 'connected' => deps của Connection, 'batch' => n]
+     * @param array $deps test: ['client' => api, 'readiness' => callable, 'connected' => deps của Connection, 'batch' => n, 'prepare' => callable, 'dryrun' => callable]
      * @return array|WP_Error ['ok' => true, 'diff' => 0, 'steps' => [...], …] — WP_Error ở bước hỏng đầu tiên (đã ghi nhật ký)
      */
     public static function run($blog_id, array $deps = [])
@@ -86,14 +86,14 @@ class TGS_Acc_Switch
         }
 
         // 1. dựng sẵn tenant
-        $p = TGS_Acc_Tenant_Prepare::run($blog_id, false, ['client' => $c]);
+        $p = isset($deps['prepare']) ? call_user_func($deps['prepare'], $blog_id) : TGS_Acc_Tenant_Prepare::run($blog_id, false, ['client' => $c]);
         $steps['prepare'] = ['done' => count($p['done']), 'skipped' => count($p['skipped']), 'errors' => count($p['errors'])];
         if (!$p['ok']) {
             return $fail('tgs_switch_prepare', 'Dựng sẵn tenant không đạt: ' . implode(' | ', array_slice($p['errors'], 0, 3)));
         }
 
         // 2. dryRun
-        $d = TGS_Acc_Catalog_Dryrun::run($blog_id, ['client' => $c]);
+        $d = isset($deps['dryrun']) ? call_user_func($deps['dryrun'], $blog_id) : TGS_Acc_Catalog_Dryrun::run($blog_id, ['client' => $c]);
         $steps['dryrun'] = ['total' => $d['total'], 'failed' => $d['failed'], 'errors' => count($d['errors'])];
         if (!$d['ok']) {
             $first = $d['rows'] ? $d['rows'][0]['sku'] . ': ' . implode('; ', $d['rows'][0]['errors']) : implode(' | ', array_slice($d['errors'], 0, 2));
@@ -219,8 +219,10 @@ class TGS_Acc_Switch
         $ct = tgs_catalog_table('price', $blog_id);
         $res = ['diff' => 0, 'missing' => 0, 'tax' => 0, 'price' => 0, 'local' => 0, 'hash' => '', 'samples' => []];
         $lines = [];
+        $mine = []; // mã của blog: bảng giá mạng (cờ store = global) còn dòng giá của blog khác, không tính
         foreach ((array) $wpdb->get_results("SELECT global_product_sku s, global_product_tax t, global_product_is_kct k FROM `{$pt}` WHERE COALESCE(is_deleted, 0) = 0 ORDER BY global_product_sku", ARRAY_A) as $r) {
             $res['local']++;
+            $mine[(string) $r['s']] = true;
             $it = $feed['products'][(string) $r['s']] ?? null;
             if (!$it) {
                 $res['missing']++;
@@ -241,6 +243,9 @@ class TGS_Acc_Switch
             $code[(int) $l['i']] = (string) $l['c'];
         }
         foreach ((array) $wpdb->get_results("SELECT price_list_id l, global_product_sku s, convert_unit u, unit_price p FROM `{$ct}` WHERE COALESCE(is_deleted, 0) = 0 AND unit_price IS NOT NULL ORDER BY price_list_id, global_product_sku, convert_unit", ARRAY_A) as $r) {
+            if (!isset($mine[(string) $r['s']])) {
+                continue;
+            }
             $k = ($code[(int) $r['l']] ?? '?') . '|' . $r['s'] . '|' . $r['u'];
             $rem = $feed['prices'][$k] ?? null;
             if ($rem === null || abs((float) $r['p'] - $rem) > 0.005) {
