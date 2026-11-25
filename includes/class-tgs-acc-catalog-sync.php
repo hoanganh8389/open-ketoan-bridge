@@ -755,7 +755,19 @@ class TGS_Acc_Catalog_Sync
      * @param array $erp_skus SKU kế toán đã có (mặt hàng chưa có thì gửi kèm tên + nhóm)
      * @return array ['priceLists', 'branches', 'products', 'prices']
      */
-    public static function build_import(array $erp_skus)
+    public static function build_import(array $erp_skus, $blog_id = null)
+    {
+        // [2026-11-25 02:00 PM Johnny Chu - Chu Hoàng Anh] SW2-2 — $blog_id: đọc bảng của BLOG qua tgs_catalog_table() (SW2-2, shop local); không có: bảng mạng như cũ (nap).
+        $prev = self::$scope;
+        self::$scope = $blog_id ? (int) $blog_id : null;
+        try {
+            return self::build_import_from($erp_skus);
+        } finally {
+            self::$scope = $prev;
+        }
+    }
+
+    private static function build_import_from(array $erp_skus)
     {
         global $wpdb;
         $warn = [];
@@ -772,7 +784,10 @@ class TGS_Acc_Catalog_Sync
         $branches = [];
         $codes = self::blog_codes();
         foreach ((array) $wpdb->get_results('SELECT blog_id, global_htsoft_price_list_id FROM ' . self::t('global_htsoft_price_list_blog') . ' WHERE COALESCE(is_deleted, 0) = 0 ORDER BY blog_id', ARRAY_A) as $b) {
-            $code = $codes[(int) $b['blog_id']] ?? '';
+            if (self::$scope !== null && (int) $b['blog_id'] !== self::$scope) {
+                continue; // SW2-2: chỉ chi nhánh của blog đang chuyển
+            }
+            $code = self::$scope !== null ? (string) TGS_Acc_Source::branch_of_blog(self::$scope) : ($codes[(int) $b['blog_id']] ?? ''); // chi nhánh khai theo blog (S002-5), như tenant-prepare
             $list = $list_code[(int) $b['global_htsoft_price_list_id']] ?? '';
             if ($code !== '' && $list !== '' && !isset($branches[$code])) {
                 $branches[$code] = ['branchCode' => $code, 'priceListCode' => $list];
@@ -889,9 +904,17 @@ class TGS_Acc_Catalog_Sync
 
     // ------------------------------------------------------------------------------------------------ tiện ích
 
+    /** @var int|null blog đang dựng dữ liệu nạp (SW2-2): bảng danh mục đọc theo blog */
+    private static $scope = null;
+    const SCOPE_KIND = ['global_product_name' => 'product', 'global_product_cat' => 'cat', 'global_htsoft_price_list' => 'price_list',
+        'global_htsoft_price_list_blog' => 'price_list_blog', 'global_htsoft_stock_convert' => 'price', 'global_htsoft_unit_base' => 'unit'];
+
     private static function t($suffix)
     {
         global $wpdb;
+        if (self::$scope !== null && isset(self::SCOPE_KIND[$suffix]) && function_exists('tgs_catalog_table')) {
+            return tgs_catalog_table(self::SCOPE_KIND[$suffix], self::$scope);
+        }
         return $wpdb->base_prefix . $suffix;
     }
 

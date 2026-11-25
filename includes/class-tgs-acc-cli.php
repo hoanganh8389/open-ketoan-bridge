@@ -517,6 +517,46 @@ class TGS_Acc_Cli
         }
     }
 
+    /**
+     * [2026-11-25 02:30 PM Johnny Chu - Chu Hoàng Anh] SW2-2 — chuyển nguồn danh mục lần đầu local → ketoan (ADR §5.2). Không --run: chỉ hỏi
+     * điều kiện (kết nối 🟢, chuẩn hàng hoá 100 %), không ghi gì. Có --run: dựng tenant → dryRun → đẩy → kéo về gắn item_id → đối chứng;
+     * KHÔNG đặt nguồn (nút ở màn Nguồn danh mục đặt nguồn khi đối chứng lệch 0; hoặc thêm --set để đặt luôn).
+     *
+     * ## OPTIONS
+     * --shop=<id>
+     * : Shop.
+     * [--run]
+     * : Chạy thật.
+     * [--set]
+     * : Sau khi đối chứng lệch 0, đặt tgs_catalog_source = ketoan.
+     *
+     * @subcommand switch
+     */
+    public function switch_($args, $assoc)
+    {
+        $blog = self::blog_arg($assoc);
+        $ready = TGS_Acc_Switch::ready($blog);
+        if (is_wp_error($ready)) {
+            WP_CLI::error("Shop #{$blog} chưa chuyển được: " . $ready->get_error_message());
+        }
+        if (empty($assoc['run'])) {
+            WP_CLI::success("Shop #{$blog} đủ điều kiện chuyển (kết nối 🟢, chuẩn hàng hoá 100 %). Chạy thật: thêm --run");
+            return;
+        }
+        $r = TGS_Acc_Switch::run($blog);
+        if (is_wp_error($r)) {
+            WP_CLI::error("Shop #{$blog}: " . $r->get_error_message());
+        }
+        foreach ($r['steps'] as $k => $v) {
+            WP_CLI::log('  ' . $k . ': ' . wp_json_encode($v, JSON_UNESCAPED_UNICODE));
+        }
+        if (!empty($assoc['set'])) {
+            $s = tgs_catalog_set_source($blog, 'ketoan', ['via' => 'cli', 'result' => $r]);
+            is_wp_error($s) ? WP_CLI::error($s->get_error_message()) : WP_CLI::log('  nguồn danh mục = ketoan');
+        }
+        WP_CLI::success("Shop #{$blog}: đối chứng lệch 0 (hash {$r['hash']})" . (empty($assoc['set']) ? '. Đặt nguồn ở màn Nguồn danh mục.' : ''));
+    }
+
     private static function blog_arg($assoc)
     {
         // [2026-11-22 04:00 PM Johnny Chu - Chu Hoàng Anh] WP-CLI giữ --blog làm tham số chung (tên cũ của --url) nên --blog=N không tới lệnh: dùng --shop=N.
