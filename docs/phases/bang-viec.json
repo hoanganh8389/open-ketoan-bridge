@@ -1,6 +1,6 @@
 {
   "schema": "bizcity_task_board@1",
-  "generated": "2026-11-25T06:55:28.192Z",
+  "generated": "2026-11-25T11:24:42.640Z",
   "phases": [
     {
       "name": "PHASE-001-KET-NOI-THEO-BLOG",
@@ -139,6 +139,41 @@
           "text": "Ca golden G5, G6, G8, G10–G13 trên multisite thử (script tsm S001-G6)",
           "file": "docs/phases/PHASE-001-KET-NOI-THEO-BLOG/40-MASTER-CHECKLIST.md",
           "line": 57
+        }
+      ]
+    },
+    {
+      "name": "PHASE-002-DOC-REF-VA-IDEMPOTENCY",
+      "path": "docs/phases/PHASE-002-DOC-REF-VA-IDEMPOTENCY",
+      "status": null,
+      "items": [
+        {
+          "id": "B002-0",
+          "group": "Xong",
+          "text": "README + checklist, đo main 3fea0ab",
+          "file": "docs/phases/PHASE-002-DOC-REF-VA-IDEMPOTENCY/40-MASTER-CHECKLIST.md",
+          "line": 11
+        },
+        {
+          "id": "B002-1",
+          "group": "Theo dõi ở repo khác",
+          "text": "header Idempotency-Key = <docKey>@<version>",
+          "file": "docs/phases/PHASE-002-DOC-REF-VA-IDEMPOTENCY/40-MASTER-CHECKLIST.md",
+          "line": 12
+        },
+        {
+          "id": "B002-2",
+          "group": "Theo dõi ở repo khác",
+          "text": "links role source về pos.order:<id> cho phiếu có nguồn CRM",
+          "file": "docs/phases/PHASE-002-DOC-REF-VA-IDEMPOTENCY/40-MASTER-CHECKLIST.md",
+          "line": 13
+        },
+        {
+          "id": "B002-3",
+          "group": "Theo dõi ở repo khác",
+          "text": "lưu kết quả posted",
+          "file": "docs/phases/PHASE-002-DOC-REF-VA-IDEMPOTENCY/40-MASTER-CHECKLIST.md",
+          "line": 14
         }
       ]
     }
