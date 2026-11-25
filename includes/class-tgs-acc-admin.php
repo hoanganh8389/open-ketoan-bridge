@@ -27,7 +27,7 @@ class TGS_Acc_Admin
         add_filter('tgs_shop_dashboard_routes', [__CLASS__, 'register_route']);
         add_filter('tgs_shop_workflow_nav', [__CLASS__, 'add_nav_item'], 45, 2);
         add_action('admin_enqueue_scripts', [__CLASS__, 'enqueue'], 30);
-        foreach (['overview', 'push', 'log', 'runs', 'sample', 'ping', 'save', 'calls', 'lists', 'events', 'events_retry', 'pause', 'selfcheck', 'trace', 'topology'] as $a) {
+        foreach (['overview', 'push', 'log', 'runs', 'sample', 'ping', 'save', 'calls', 'lists', 'events', 'events_retry', 'pause', 'selfcheck', 'trace', 'topology', 'blog_list', 'blog_check', 'blog_save'] as $a) {
             add_action('wp_ajax_tgs_acc_' . $a, [__CLASS__, 'ajax_' . $a]);
         }
         // [2026-11-21 10:15 PM Johnny Chu - Chu Hoàng Anh] S002-13 — blog đổi nguồn phiếu thì làm mới danh sách blog nguồn sổ POS.
@@ -563,6 +563,48 @@ class TGS_Acc_Admin
             wp_send_json_error(['message' => $r->get_error_message(), 'topology' => TGS_Acc_Install::topology()]);
         }
         wp_send_json_success(['topology' => TGS_Acc_Install::topology(), 'message' => $msg]);
+    }
+
+    // [2026-11-25 10:05 AM Johnny Chu - Chu Hoàng Anh] B001-C4 — màn "Khoá theo shop": liệt kê (đọc đệm), kiểm từng blog, lưu URL / khoá của blog. Không trả khoá thật.
+    public static function ajax_blog_list()
+    {
+        self::guard();
+        $rows = TGS_Acc_Blog_Keys::rows();
+        $out = ['rows' => $rows, 'canConfig' => self::can_configure()];
+        if (!empty($_POST['csv'])) {
+            $out['csv'] = TGS_Acc_Blog_Keys::csv($rows);
+        }
+        wp_send_json_success($out);
+    }
+
+    public static function ajax_blog_check()
+    {
+        self::guard();
+        $blog = (int) ($_POST['blog'] ?? 0);
+        if (!in_array($blog, TGS_Acc_Site::blogs(), true)) {
+            wp_send_json_error(['message' => 'Blog #' . $blog . ' không có trong mạng.']);
+        }
+        wp_send_json_success(['row' => TGS_Acc_Blog_Keys::check($blog)]);
+    }
+
+    public static function ajax_blog_save()
+    {
+        self::guard('configure');
+        $blog = (int) ($_POST['blog'] ?? 0);
+        if (!in_array($blog, TGS_Acc_Site::blogs(), true)) {
+            wp_send_json_error(['message' => 'Blog #' . $blog . ' không có trong mạng.']);
+        }
+        $in = [];
+        foreach (['url', 'key'] as $k) {
+            if (isset($_POST[$k])) {
+                $in[$k] = (string) wp_unslash($_POST[$k]);
+            }
+        }
+        $r = TGS_Acc_Blog_Keys::save($blog, $in);
+        if (is_wp_error($r)) {
+            wp_send_json_error(['message' => $r->get_error_message()]);
+        }
+        wp_send_json_success(['row' => $r, 'message' => 'Đã lưu và kiểm lại shop #' . $blog . '.']);
     }
 
     public static function ajax_save()

@@ -69,6 +69,17 @@ class TGS_Acc_Connection
         return $info;
     }
 
+    /** Câu trả lời đang đệm, KHÔNG hỏi mạng (cho màn liệt kê nhiều blog). null = chưa có / hết hạn. */
+    public static function cached($blog_id)
+    {
+        $blog_id = (int) $blog_id;
+        if (isset(self::$memo[$blog_id])) {
+            return self::$memo[$blog_id];
+        }
+        $hit = get_site_transient(self::TRANSIENT . $blog_id);
+        return is_array($hit) && isset($hit['state']) ? $hit : null;
+    }
+
     /** Cả bốn điều kiện đạt? */
     public static function connected($blog_id = 0, array $deps = [])
     {

@@ -47,6 +47,7 @@ $tacc_status = ['live' => ['Đang chạy', 'ok'], 'planned' => ['Dự kiến', '
         <button type="button" data-tab="lists">Danh mục kế toán</button>
         <button type="button" data-tab="calls">Lượt gọi API</button>
         <button type="button" data-tab="topology">Sơ đồ kết nối</button><!-- [2026-11-23 12:40 PM Johnny Chu - Chu Hoàng Anh] OKT-SET-3 -->
+        <button type="button" data-tab="blogkeys">Khoá theo shop</button><!-- [2026-11-25 10:05 AM Johnny Chu - Chu Hoàng Anh] B001-C4 -->
         <button type="button" data-tab="settings">Cài đặt</button>
     </nav>
 
@@ -254,6 +255,20 @@ $tacc_status = ['live' => ['Đang chạy', 'ok'], 'planned' => ['Dự kiến', '
     <!-- SƠ ĐỒ KẾT NỐI ([2026-11-23 12:40 PM Johnny Chu - Chu Hoàng Anh] OKT-SET-3 — open-setup 82 B-7: site → bridge → máy open-ketoan → tenant, ping từng site, từng máy) -->
     <section class="tacc-panel" data-panel="topology" hidden>
         <div class="tacc-card" id="taccTopo"><span class="tacc-muted">Đang tải…</span></div>
+    </section>
+
+    <!-- KHOÁ THEO SHOP (B001-C4) -->
+    <section class="tacc-panel" data-panel="blogkeys" hidden>
+        <div class="tacc-card">
+            <div class="tacc-card__title">Khoá theo shop</div>
+            <div class="tacc-muted">Mỗi shop một dòng: nguồn khoá, khoá (che), tenant do kế toán báo, trạng thái nối. Danh sách đọc kết quả đã đệm (60 giây); bấm "Kiểm" để hỏi lại ngay. Tenant là điều kế toán báo — không suy từ khoá hay mã blog.</div>
+            <div class="tacc-actions">
+                <button type="button" class="tacc-btn" id="taccBkAll">Kiểm tất cả</button>
+                <button type="button" class="tacc-btn ghost" id="taccBkCsv">Xuất CSV</button>
+                <span class="tacc-muted" id="taccBkNote"></span>
+            </div>
+            <div class="tacc-tablewrap"><table class="tacc-table" id="taccBkTable"><tbody><tr><td class="tacc-muted">Đang tải…</td></tr></tbody></table></div>
+        </div>
     </section>
 
     <!-- CÀI ĐẶT -->
