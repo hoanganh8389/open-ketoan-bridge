@@ -1,0 +1,146 @@
+{
+  "schema": "bizcity_task_board@1",
+  "generated": "2026-11-25T06:55:28.192Z",
+  "phases": [
+    {
+      "name": "PHASE-001-KET-NOI-THEO-BLOG",
+      "path": "docs/phases/PHASE-001-KET-NOI-THEO-BLOG",
+      "status": null,
+      "items": [
+        {
+          "id": "B001-DOC",
+          "group": "Theo dõi ở repo khác",
+          "text": "docs/MO-RONG.md:57, 61, 141-155 và includes/class-tgs-acc-catalog.php:86, 258-262 bỏ \"branchCode = mã shop\", \"tự tạo chi nhánh\"; docs/LUONG-BAN-HANG-SANG-KE-TOAN.md thêm mục nguồn thứ hai",
+          "file": "docs/phases/PHASE-001-KET-NOI-THEO-BLOG/40-MASTER-CHECKLIST.md",
+          "line": 19
+        },
+        {
+          "id": "B001-FIX1",
+          "group": "Theo dõi ở repo khác",
+          "text": "require_once tên file cũ → open-ketoan-bridge.php ở tools/day-ke-toan.php:33, doi-chieu-ke-toan.php:36, danh-muc-hang.php:41, includes/class-tgs-acc-admin.php:106; cron hint admin/page-cong-ke-toan.php:277-279",
+          "file": "docs/phases/PHASE-001-KET-NOI-THEO-BLOG/40-MASTER-CHECKLIST.md",
+          "line": 24
+        },
+        {
+          "id": "B001-C1",
+          "group": "Theo dõi ở repo khác",
+          "text": "Tầng cấu hình H → B → M: key_for, key_legacy, url_for, key_mode, current_blog, save_blog, for_display_blog; key() giữ hành vi cũ",
+          "file": "docs/phases/PHASE-001-KET-NOI-THEO-BLOG/40-MASTER-CHECKLIST.md",
+          "line": 25
+        },
+        {
+          "id": "B001-C2",
+          "group": "Theo dõi ở repo khác",
+          "text": "TGS_Acc_Api_Client::for_blog($blog) (WP_Error nếu không có khoá riêng); constructor mặc định = blog hiện tại; health() / ping() theo blog; nhật ký 60 lượt gọi thêm blog_id, xem theo blog",
+          "file": "docs/phases/PHASE-001-KET-NOI-THEO-BLOG/40-MASTER-CHECKLIST.md",
+          "line": 30
+        },
+        {
+          "id": "B001-C6",
+          "group": "Theo dõi ở repo khác",
+          "text": "includes/class-tgs-acc-connection.php: tgs_okt_connected() (4 điều kiện, transient 60 giây, timeout 3 giây, kiểm trùng tenant), tgs_okt_connection(), bản đồ tenant → blog (site option tgs_okt_tenant_map), hook tgs_okt_connection_changed; thay TGS_Acc_Config::ready() ở admin :121 / :250, events :76-87, catalog-sync :182, branch / warehouse / supplier ready()",
+          "file": "docs/phases/PHASE-001-KET-NOI-THEO-BLOG/40-MASTER-CHECKLIST.md",
+          "line": 31
+        },
+        {
+          "id": "B001-C4",
+          "group": "Theo dõi ở repo khác",
+          "text": "Màn Network \"Khoá theo shop\" (cột: blog, nguồn khoá, khoá che, tenant, trạng thái 🟢🟡⚪🔴, lần kéo) + nút Kiểm tất cả / dòng / Xuất CSV (không khoá); màn Kết nối của site (URL riêng, khoá, Kiểm tra, Xoá); AJAX tgs_acc_blog_save / _check / _list; shops() từ blog đã kết nối",
+          "file": "docs/phases/PHASE-001-KET-NOI-THEO-BLOG/40-MASTER-CHECKLIST.md",
+          "line": 32
+        },
+        {
+          "id": "B001-T2",
+          "group": "Theo dõi ở repo khác",
+          "text": "tests/connection-test.php: 4 điều kiện, transient, trùng tenant, site 0, bridge tắt",
+          "file": "docs/phases/PHASE-001-KET-NOI-THEO-BLOG/40-MASTER-CHECKLIST.md",
+          "line": 33
+        },
+        {
+          "id": "B001-C5",
+          "group": "Theo dõi ở repo khác",
+          "text": "/ketoan-events: xác thực → tenantId → blog (bản đồ C6) → switch_to_blog → mirror; không tìm ra → 404; /catalog-changed: xác thực theo tenant (khoá của blog hoặc chữ ký), phát tgs_okt_catalog_changed($blog, $payload), **không kéo**; /pending, /sites: blog theo tenant của khoá gọi, bỏ ?shops= và branchCode",
+          "file": "docs/phases/PHASE-001-KET-NOI-THEO-BLOG/40-MASTER-CHECKLIST.md",
+          "line": 38
+        },
+        {
+          "id": "B001-C7",
+          "group": "Theo dõi ở repo khác",
+          "text": "Gỡ includes/class-tgs-acc-catalog-sync.php (require ở bootstrap :68 / :82), tools/danh-muc-hang.php, option catalog_from_erp (config :34 / :236-238 / :166-167, admin :390), 5 site option tgs_acc_catalog_*, filter tgs_catalog_readonly / tgs_price_edit_locked; giữ §4 doc 10 làm tham chiếu cho tsm",
+          "file": "docs/phases/PHASE-001-KET-NOI-THEO-BLOG/40-MASTER-CHECKLIST.md",
+          "line": 39
+        },
+        {
+          "id": "B001-C9",
+          "group": "Theo dõi ở repo khác",
+          "text": "TGS_Acc_Lists cache khoá blog\\",
+          "file": "docs/phases/PHASE-001-KET-NOI-THEO-BLOG/40-MASTER-CHECKLIST.md",
+          "line": 40
+        },
+        {
+          "id": "B001-C3",
+          "group": "Theo dõi ở repo khác",
+          "text": "TGS_Acc_Pusher::send() :403, TGS_Acc_Events::deliver() :453-457, day-ke-toan.php:115, doi-chieu.php:91: client theo blog; không khoá riêng → key_legacy() kèm nhãn legacy trên kết quả / màn hình; không có cả hai → bỏ qua, ghi lý do; --all lặp blog",
+          "file": "docs/phases/PHASE-001-KET-NOI-THEO-BLOG/40-MASTER-CHECKLIST.md",
+          "line": 45
+        },
+        {
+          "id": "B001-C8",
+          "group": "Theo dõi ở repo khác",
+          "text": "tgs_acc_push_log(_tax): thêm tenant VARCHAR(64), server_url; UNIQUE(tenant, doc_key); find_many / keys_in_range / search / stats lọc theo tenant; DB_VERSION 4; bỏ cảnh báo admin :401-405",
+          "file": "docs/phases/PHASE-001-KET-NOI-THEO-BLOG/40-MASTER-CHECKLIST.md",
+          "line": 46
+        },
+        {
+          "id": "B001-C10",
+          "group": "Theo dõi ở repo khác",
+          "text": "includes/class-tgs-acc-source-pos.php: sale_rows / return_rows từ {B}local_ledger 10 / 11 (đã duyệt, không pg:), dòng từ phiếu xuất con loại 2 / phiếu hoàn (khuôn supplier_doc_items), không invoice; TGS_Acc_Source::for_blog($blog) chọn tgs-bc-tk nếu có, không thì POS; thay guard ready() ở gate :200, events :426, admin :247, day-ke-toan :109; danh sách shop = blog đã kết nối",
+          "file": "docs/phases/PHASE-001-KET-NOI-THEO-BLOG/40-MASTER-CHECKLIST.md",
+          "line": 47
+        },
+        {
+          "id": "B001-C11",
+          "group": "Theo dõi ở repo khác",
+          "text": "Bỏ branchCode chi nhánh (mapper 9 chỗ → chi nhánh mặc định của tenant từ tgs_okt_connection()), bỏ ensure_branch (pusher :405-424), gỡ class-tgs-acc-branch-sync.php + hook bootstrap :80, option tgs_acc_known_branches(_tax), tgs_acc_branch_sync_last; chuyển kho / chuyển tiền chéo blog khác tenant → bỏ qua + log (00 §5)",
+          "file": "docs/phases/PHASE-001-KET-NOI-THEO-BLOG/40-MASTER-CHECKLIST.md",
+          "line": 48
+        },
+        {
+          "id": "B001-C12",
+          "group": "Theo dõi ở repo khác",
+          "text": "SSO: tenant và URL theo blog đang đứng; sso_tenant xuống tầng B; safe_return() so với url_for($blog)",
+          "file": "docs/phases/PHASE-001-KET-NOI-THEO-BLOG/40-MASTER-CHECKLIST.md",
+          "line": 49
+        },
+        {
+          "id": "B001-C13",
+          "group": "Theo dõi ở repo khác",
+          "text": "TGS_Acc_Trade_Mapper::catalog() :315-326 đọc tgs_catalog_table('product', $blog)",
+          "file": "docs/phases/PHASE-001-KET-NOI-THEO-BLOG/40-MASTER-CHECKLIST.md",
+          "line": 50
+        },
+        {
+          "id": "B001-T4",
+          "group": "Theo dõi ở repo khác",
+          "text": "tests/source-pos-test.php (fixture sổ POS → chứng từ, không invoice), tests/push-log-tenant-test.php",
+          "file": "docs/phases/PHASE-001-KET-NOI-THEO-BLOG/40-MASTER-CHECKLIST.md",
+          "line": 51
+        },
+        {
+          "id": "B001-C14",
+          "group": "Theo dõi ở repo khác",
+          "text": "Cron tgs_acc_events_retry, warehouse_sync: lặp blog, khoá của blog; --all bỏ TGS_BCTK_Vat_Shops",
+          "file": "docs/phases/PHASE-001-KET-NOI-THEO-BLOG/40-MASTER-CHECKLIST.md",
+          "line": 56
+        },
+        {
+          "id": "B001-G",
+          "group": "Theo dõi ở repo khác",
+          "text": "Ca golden G5, G6, G8, G10–G13 trên multisite thử (script tsm S001-G6)",
+          "file": "docs/phases/PHASE-001-KET-NOI-THEO-BLOG/40-MASTER-CHECKLIST.md",
+          "line": 57
+        }
+      ]
+    }
+  ]
+}
