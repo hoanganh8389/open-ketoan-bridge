@@ -32,5 +32,11 @@ Hồi quy: connection 32/32, blog-keys 33/33, dryrun 14/14, tenant-prepare 16/16
 
 ## Nợ / chưa làm
 - **SW2-0c (mới):** chuẩn hàng hoá (tsm) báo 100 % dù mặt hàng nằm ở nhóm **cấp 1** (kế toán đòi cấp 3) — dryRun mới bắt. Thêm kiểm "mặt hàng phải thuộc nhóm cấp 3". Cùng nhóm với **SW2-0a** (mã phải bắt đầu bằng mã nhóm cấp 3).
-- Hàng chờ trên nút tsm chạy đồng bộ trong một request; shop vài nghìn mã cần chạy theo lô nền (CLI chạy được ngay).
 - Giá chỉ đối chứng theo dòng giá local; đối soát đêm là SW2-3.
+
+## Chạy từng lượt, không một request dài (chủ chốt 25/11)
+Thủ tục là **máy trạng thái** (option `tgs_acc_switch_state` của blog); mỗi `step()` làm đúng MỘT việc: dựng tenant · dryRun · một lô 200 mã · một lượt nạp ĐVT/giá · một trang feed mặt hàng (1.000) · một trang feed giá (5.000) · tổng đối chứng. Đối chứng chạy cuốn chiếu theo trang feed (không giữ cả danh mục trong bộ nhớ; mã đã thấy lưu ở transient).
+- **admin-ajax `tgs_acc_switch`** (op `start | step | status | cancel`; nonce + quyền như nút ở tsm): màn tsm lặp `step` tới khi xong rồi gửi form để tsm đặt nguồn.
+- **Cron nền** `tgs_acc_switch_tick` (`start` với `cron = 1`, ô "Chạy nền" ở màn): mỗi 20 giây một lượt; đóng trang không mất việc; mở lại màn thấy tiến độ.
+- Nút tsm: kết quả đạt còn hiệu lực 10 phút (`fresh`) thì **dùng luôn, không chạy lại**; hết hạn / chưa chạy → chạy trọn (cách cũ, shop nhỏ).
+- Chạy thật shop-c ↔ okt-thu qua từng lượt: 8 lượt (prepare → dryrun → push → import ×3 → pull_products → pull_prices → done), cùng hash `d285c8f0361c52fe1ba9992db8deeca4`. `switch-wp-test` **46/46** (thêm: thứ tự pha, batch 1 → mỗi lượt đẩy 1 dòng, busy, huỷ, cron hẹn / gỡ lịch, filter dùng lại kết quả, ajax đăng ký).
