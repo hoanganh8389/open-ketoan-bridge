@@ -10,16 +10,17 @@
 | Bị chặn | 0 |
 | Chưa làm | 0 |
 | Hoãn | 0 |
-| Xong | 0 |
+| Xong | 1 |
 | Huỷ | 0 |
 | Đã chuyển | 0 |
-| Theo dõi ở repo khác | 19 |
-| **Tổng** | **19** |
+| Theo dõi ở repo khác | 22 |
+| **Tổng** | **23** |
 
-> 19 việc ghi trạng thái ở **repo điều phối** (một nguồn trạng thái — ví dụ chương trình OKT ở [bizcity-open-setup](https://github.com/hoanganh8389/bizcity-open-setup/blob/main/docs/chuong-trinh/OKT/40-CHECKLIST.md)); bảng này chỉ trỏ sang, không đếm lại.
+> 22 việc ghi trạng thái ở **repo điều phối** (một nguồn trạng thái — ví dụ chương trình OKT ở [bizcity-open-setup](https://github.com/hoanganh8389/bizcity-open-setup/blob/main/docs/chuong-trinh/OKT/40-CHECKLIST.md)); bảng này chỉ trỏ sang, không đếm lại.
 
 ## Theo phase
 
 | Phase | Trạng thái phase | Xong | Đang / có mã | Bị chặn | Chưa làm | Tổng |
 |---|---|---|---|---|---|---|
 | [PHASE-001-KET-NOI-THEO-BLOG](PHASE-001-KET-NOI-THEO-BLOG/) | — | 0 | 0 | 0 | 0 | 19 |
+| [PHASE-002-DOC-REF-VA-IDEMPOTENCY](PHASE-002-DOC-REF-VA-IDEMPOTENCY/) | — | 1 | 0 | 0 | 0 | 4 |
