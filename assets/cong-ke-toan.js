@@ -34,6 +34,7 @@
             if (tab === 'events') { loadEvents(); }
             if (tab === 'selfcheck') { loadSelfcheck(); }
             if (tab === 'lists') { initLists(); }
+            if (tab === 'blogkeys') { loadBlogKeys(); }
         }
     }
     $$('.tacc-tabs button').forEach(function (b) { b.addEventListener('click', function () { show(b.dataset.tab); }); });
@@ -485,6 +486,79 @@
                     + '<table class="tacc-table"><thead><tr><th>Site</th><th>Mã chi nhánh</th><th>Tên</th><th>Kết quả</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div>';
             }).catch(function (e) { out.innerHTML = '<div class="tacc-pill bad">' + esc(e.message) + '</div>'; })
               .then(function () { btn.disabled = false; });
+        });
+    }
+
+    /* ── Khoá theo shop (B001-C4) ── */
+    var BK = { rows: [], can: false };
+    var BK_KEY = { own: 'khoá riêng', install: 'khoá cài đặt', legacy: 'khoá chung', none: 'chưa có' };
+    var BK_DOT = { ok: 'ok', warn: 'warn', bad: 'bad', none: '' };
+    function bkNote(m, bad) { var n = $('#taccBkNote'); if (n) { n.textContent = m || ''; n.style.color = bad ? '#b91c1c' : ''; } }
+    function bkRender() {
+        var t = $('#taccBkTable');
+        if (!t) { return; }
+        var head = '<thead><tr><th>Shop</th><th>Nguồn khoá</th><th>Khoá</th><th>Địa chỉ</th><th>Tenant</th><th>Trạng thái</th><th>Kiểm lúc</th><th></th></tr></thead>';
+        var body = BK.rows.map(function (r) {
+            var at = r.checked_at ? new Date(r.checked_at).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }) : '';
+            return '<tr data-blog="' + r.blog + '"><td><b>' + esc(r.code) + '</b><br><span class="tacc-muted">' + esc(r.name) + ' · #' + r.blog + '</span></td>'
+                + '<td>' + esc(BK_KEY[r.key_mode] || r.key_mode) + (r.key_locked ? ' <span class="tacc-muted">(wp-config)</span>' : '') + '</td>'
+                + '<td><code>' + esc(r.key_masked || '—') + '</code></td>'
+                + '<td class="tacc-muted">' + esc(r.url) + '</td>'
+                + '<td>' + esc(r.tenant || '—') + '</td>'
+                + '<td><span class="tacc-dot ' + (BK_DOT[r.state] || '') + '" aria-hidden="true"></span> ' + esc(r.icon) + ' ' + esc(r.text) + '</td>'
+                + '<td class="tacc-muted">' + esc(at) + '</td>'
+                + '<td><button type="button" class="tacc-btn ghost" data-bk="check">Kiểm</button>'
+                + (BK.can ? ' <button type="button" class="tacc-btn ghost" data-bk="edit">Sửa</button>' : '') + '</td></tr>';
+        }).join('');
+        t.innerHTML = head + '<tbody>' + (body || '<tr><td class="tacc-muted">Chưa có shop nào.</td></tr>') + '</tbody>';
+    }
+    function bkSet(row) {
+        BK.rows = BK.rows.map(function (r) { return r.blog === row.blog ? row : r; });
+        bkRender();
+    }
+    function loadBlogKeys() {
+        return R.post('tgs_acc_blog_list', {}).then(function (d) { BK.rows = d.rows; BK.can = !!d.canConfig; bkRender(); })
+            .catch(function (e) { bkNote(e.message, true); });
+    }
+    function bkCheck(blog) {
+        return R.post('tgs_acc_blog_check', { blog: blog }).then(function (d) { bkSet(d.row); }).catch(function (e) { bkNote(e.message, true); });
+    }
+    function bkEdit(blog) {
+        var r = BK.rows.filter(function (x) { return x.blog === blog; })[0];
+        if (!r) { return; }
+        var url = window.prompt('Địa chỉ kế toán của ' + r.code + ' (trống = dùng địa chỉ chung của mạng):', r.url || '');
+        if (url === null) { return; }
+        var key = window.prompt('Khoá API của ' + r.code + ' (trống = giữ khoá cũ; gõ - để xoá):', '');
+        if (key === null) { return; }
+        bkNote('Đang lưu…');
+        R.post('tgs_acc_blog_save', { blog: blog, url: url, key: key }).then(function (d) { bkSet(d.row); bkNote(d.message); })
+            .catch(function (e) { bkNote(e.message, true); });
+    }
+    if ($('#taccBkTable')) {
+        $('#taccBkTable').addEventListener('click', function (ev) {
+            var b = ev.target.closest('button[data-bk]');
+            var tr = ev.target.closest('tr[data-blog]');
+            if (!b || !tr) { return; }
+            var blog = parseInt(tr.dataset.blog, 10);
+            if (b.dataset.bk === 'check') { b.disabled = true; bkCheck(blog).then(function () { b.disabled = false; }); }
+            if (b.dataset.bk === 'edit') { bkEdit(blog); }
+        });
+        $('#taccBkAll').addEventListener('click', function () {
+            var btn = this, ids = BK.rows.map(function (r) { return r.blog; }), i = 0;
+            btn.disabled = true;
+            (function next() {
+                if (i >= ids.length) { btn.disabled = false; bkNote('Đã kiểm ' + ids.length + ' shop.'); return; }
+                bkNote('Đang kiểm ' + (i + 1) + '/' + ids.length + '…');
+                bkCheck(ids[i++]).then(next);
+            })();
+        });
+        $('#taccBkCsv').addEventListener('click', function () {
+            R.post('tgs_acc_blog_list', { csv: 1 }).then(function (d) {
+                var a = document.createElement('a');
+                a.href = URL.createObjectURL(new Blob([d.csv], { type: 'text/csv;charset=utf-8' }));
+                a.download = 'khoa-theo-shop.csv';
+                document.body.appendChild(a); a.click(); a.remove();
+            }).catch(function (e) { bkNote(e.message, true); });
         });
     }
 
