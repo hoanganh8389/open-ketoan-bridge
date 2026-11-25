@@ -143,7 +143,8 @@ class TGS_Acc_Catalog_Sync
     public static function connected($connected, $blog_id = 0)
     {
         $blog_id = (int) $blog_id ?: (int) get_current_blog_id();
-        return (bool) $connected || ($blog_id > 0 && TGS_Acc_Config::ready_for($blog_id));
+        // [2026-11-25 08:20 AM Johnny Chu - Chu Hoàng Anh] SW2-1 — trả lời bằng bốn điều kiện thật (có khoá · kế toán trả lời · biết tenant · không trùng tenant), không chỉ "có khoá".
+        return (bool) $connected || ($blog_id > 0 && TGS_Acc_Connection::connected($blog_id));
     }
 
     /** Nguồn mặc định của blog khi admin chưa chọn: blog đã nối + đọc bảng mạng được kéo về → ketoan. */

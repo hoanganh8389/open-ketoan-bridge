@@ -414,7 +414,9 @@ class TGS_Acc_Config
             if ($blog_id !== TGS_Acc_Site::current()) {
                 return new WP_Error('bad_blog', 'Máy một site chỉ có blog ' . TGS_Acc_Site::current());
             }
-            return self::save(array_intersect_key($in, array_flip(self::BLOG_FIELDS)));
+            $r = self::save(array_intersect_key($in, array_flip(self::BLOG_FIELDS)));
+            self::forget_connection($blog_id);
+            return $r;
         }
         if ($blog_id <= 0 || !get_site($blog_id)) {
             return new WP_Error('bad_blog', 'Không có blog ' . $blog_id);
@@ -456,7 +458,16 @@ class TGS_Acc_Config
         TGS_Acc_Site::set($blog_id, self::OPTION, array_filter($s, static function ($v) {
             return $v !== '';
         }));
+        self::forget_connection($blog_id);
         return true;
+    }
+
+    /** [2026-11-25 08:20 AM Johnny Chu - Chu Hoàng Anh] SW2-1 — đổi khoá / URL thì câu trả lời kết nối cũ hết hiệu lực. */
+    private static function forget_connection($blog_id)
+    {
+        if (class_exists('TGS_Acc_Connection')) {
+            TGS_Acc_Connection::forget((int) $blog_id);
+        }
     }
 
     /**

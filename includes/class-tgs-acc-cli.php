@@ -367,6 +367,46 @@ class TGS_Acc_Cli
         }
     }
 
+    // [2026-11-25 08:20 AM Johnny Chu - Chu Hoàng Anh] SW2-1 — kết nối theo blog.
+    /**
+     * Bốn điều kiện kết nối của shop (có khoá · kế toán trả lời · biết tenant · không trùng tenant). Hỏi lại ngay, không dùng đệm 60 giây.
+     *
+     * ## OPTIONS
+     * [--shop=<id>]
+     * : Shop (blog id).
+     * [--all]
+     * : Mọi shop có khoá.
+     * [--format=<f>]
+     * : table (mặc định) | json
+     */
+    public function connection($args, $assoc)
+    {
+        $blogs = !empty($assoc['all']) ? TGS_Acc_Selfcheck::blogs_with_key() : [self::blog_arg($assoc)];
+        $all = [];
+        $bad = 0;
+        foreach ($blogs as $b) {
+            $c = TGS_Acc_Connection::connection($b, true);
+            $all[] = $c;
+            $bad += $c['ok'] ? 0 : 1;
+            if (($assoc['format'] ?? 'table') === 'json') {
+                continue;
+            }
+            WP_CLI::line(($c['ok'] ? '🟢' : '🔴') . " Shop #{$b} · {$c['state']} · tenant " . ($c['tenant'] ?: '—') . ' · khoá ' . $c['key_mode'] . ($c['error'] !== '' ? ' · ' . $c['error'] : ''));
+            foreach ($c['conditions'] as $name => $x) {
+                WP_CLI::line('   ' . ($x['ok'] ? '🟢' : '🔴') . ' ' . str_pad($name, 10) . ($x['note'] !== '' ? ' ' . $x['note'] : ''));
+            }
+        }
+        if (($assoc['format'] ?? 'table') === 'json') {
+            WP_CLI::line(wp_json_encode(count($all) === 1 ? $all[0] : $all, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+        }
+        if (!$blogs) {
+            WP_CLI::warning('Không có blog nào có khoá kế toán.');
+        }
+        if ($bad) {
+            WP_CLI::halt(1);
+        }
+    }
+
     // [2026-11-23 06:50 AM Johnny Chu - Chu Hoàng Anh] OKT-TOPO-9 — xem / đặt mô hình triển khai (luật tối thượng P-0).
     /**
      * Mô hình triển khai: bizcity · chain (tự cài nhiều cửa hàng) · single (một site). Hằng TGS_ACC_DEPLOYMENT thắng và khoá lựa chọn.
