@@ -217,10 +217,14 @@ class TGS_Acc_Connection
 }
 
 if (!function_exists('tgs_okt_connection')) {
-    /** Thông tin kết nối của blog (không có khoá thật). @return array */
-    function tgs_okt_connection($blog_id = 0)
+    /**
+     * Thông tin kết nối của blog (không có khoá thật). $cached_only = true: chỉ đọc câu trả lời đang đệm, KHÔNG hỏi mạng
+     * (màn liệt kê nhiều blog của tsm); chưa có đệm → null.
+     * @return array|null
+     */
+    function tgs_okt_connection($blog_id = 0, $cached_only = false)
     {
-        return TGS_Acc_Connection::connection((int) $blog_id);
+        return $cached_only ? TGS_Acc_Connection::cached((int) $blog_id) : TGS_Acc_Connection::connection((int) $blog_id);
     }
 }
 // `tgs_okt_connected($blog)` là hàm của tsm (đọc filter cùng tên, không bridge → false); bridge trả lời filter đó ở TGS_Acc_Catalog_Sync::connected()
