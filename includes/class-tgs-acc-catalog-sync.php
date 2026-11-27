@@ -201,19 +201,35 @@ class TGS_Acc_Catalog_Sync
             'methods'             => ['POST', 'GET'],
             'permission_callback' => ['TGS_Acc_Gate', 'authorized'],
             'callback'            => static function () {
-                if (!self::enabled()) {
-                    return ['ok' => true, 'skipped' => 'Danh mục chưa lấy từ kế toán (công tắc tắt)'];
-                }
-                add_action('shutdown', static function () {
-                    if (function_exists('fastcgi_finish_request')) {
-                        fastcgi_finish_request();
-                    }
-                    ignore_user_abort(true);
-                    (new self())->sync();
-                }, 100);
-                return ['ok' => true, 'queued' => true];
+                return self::pull_after_response();
             },
         ]);
+    }
+
+    // [2026-11-28 09:00 PM Võ Hoàng] NGHIEM-THU — NT-BH-062: tách "kéo ngay sau khi trả lời" dùng chung cho route catalog-changed và
+    // sự kiện bizcity.masterdata.catalog.changed qua webhook app tgs-wp (TGS_Acc_Ketoan_Events) (đóng góp)
+    /**
+     * Hẹn kéo danh mục NGAY sau khi trả lời bên gọi (shutdown, đóng kết nối trước) — không bắt bên kia chờ lượt kéo.
+     * Đang có lượt kéo khác: sync() đánh dấu DIRTY để lượt đó kéo thêm. Gọi nhiều lần trong một yêu cầu chỉ hẹn một lần.
+     * @return array{ok: bool, queued?: bool, skipped?: string}
+     */
+    public static function pull_after_response()
+    {
+        static $queued = false;
+        if (!self::enabled()) {
+            return ['ok' => true, 'skipped' => 'Danh mục chưa lấy từ kế toán (chưa nối kế toán hoặc hằng TGS_ACC_CATALOG_FROM_ERP = false)'];
+        }
+        if (!$queued) {
+            $queued = true;
+            add_action('shutdown', static function () {
+                if (function_exists('fastcgi_finish_request')) {
+                    fastcgi_finish_request();
+                }
+                ignore_user_abort(true);
+                (new self())->sync();
+            }, 100);
+        }
+        return ['ok' => true, 'queued' => true];
     }
 
     // [2026-11-27 06:00 PM Võ Hoàng] C7 (docs/CAU-HINH-KET-NOI.md) — bỏ công tắc catalog_from_erp: đã nối kế toán thì danh mục hàng

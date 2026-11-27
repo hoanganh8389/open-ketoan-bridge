@@ -106,6 +106,17 @@ final class TGS_Acc_Ketoan_Events
     {
         $type = (string) $evt['type'];
         $data = (array) $evt['data'];
+        // [2026-11-28 09:00 PM Võ Hoàng] NGHIEM-THU — NT-BH-062: kế toán báo danh mục hàng đổi (app tgs-wp 0.2.0) → kéo danh mục ngay sau
+        // khi trả lời; không phải chứng từ nên không gắn blog. Lỗi kéo không làm hỏng việc nhận (lịch 5 phút vẫn là lưới an toàn) (đóng góp)
+        if ($type === 'bizcity.masterdata.catalog.changed') {
+            if (!class_exists('TGS_Acc_Catalog_Sync')) {
+                return ['status' => 'skipped', 'reason' => 'Cầu nối không có bộ kéo danh mục'];
+            }
+            $r = TGS_Acc_Catalog_Sync::pull_after_response();
+            return empty($r['queued'])
+                ? ['status' => 'skipped', 'reason' => (string) ($r['skipped'] ?? 'Không kéo danh mục')]
+                : ['status' => 'applied', 'reason' => 'Đã hẹn kéo danh mục ngay'];
+        }
         if ($type === 'pos.return.recorded') {
             return self::pos_return($data);
         }
