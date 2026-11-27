@@ -220,21 +220,47 @@ final class TGS_Acc_Ledger_Mirror
             }
             $by_role[$role][] = $it;
         }
+        // [2026-11-27 05:00 PM Võ Hoàng] Ghi lại chứng từ (kế toán tăng version, vd lúc xuất hoá đơn) GIỮ id dòng hàng: ghép dòng
+        // mới với dòng cũ cùng sản phẩm theo thứ tự, sửa tại chỗ; chỉ thêm / xoá phần dư. Xoá hết rồi chèn lại làm đổi id →
+        // bản chụp dòng của hoá đơn Viettel (ledger_item_id) và liên kết dòng hoàn → dòng bán (source_ledger_item_id) trỏ vào
+        // dòng đã mất, phiếu điều chỉnh hoá đơn bị bỏ qua là "không nằm trên hoá đơn" (đóng góp)
         foreach ($ids as $role => $ledger_id) {
-            $wpdb->delete($item_t, ['local_ledger_id' => $ledger_id]);
+            $pool = [];
+            foreach ((array) $wpdb->get_results($wpdb->prepare(
+                "SELECT local_ledger_item_id, local_product_name_id FROM {$item_t} WHERE local_ledger_id = %d ORDER BY local_ledger_item_id",
+                $ledger_id
+            )) as $old) {
+                $pool[(int) $old->local_product_name_id][] = (int) $old->local_ledger_item_id;
+            }
             foreach ($by_role[$role] ?? [] as $it) {
                 $row = self::encode_json(array_intersect_key($it, array_flip($item_cols)));
                 $row['local_ledger_id'] = $ledger_id;
-                $row['created_at'] = $row['created_at'] ?? $now;
                 $row['updated_at'] = $now;
-                if (!$wpdb->insert($item_t, $row)) return self::db_error("Ghi dòng hàng phiếu {$role}");
-                $item_ids[$role][] = (int) $wpdb->insert_id;
+                $product = (int) ($row['local_product_name_id'] ?? 0);
+                $reuse = !empty($pool[$product]) ? array_shift($pool[$product]) : 0;
+                if ($reuse) {
+                    unset($row['created_at']);
+                    if ($wpdb->update($item_t, $row, ['local_ledger_item_id' => $reuse]) === false) return self::db_error("Sửa dòng hàng phiếu {$role}");
+                    $item_ids[$role][] = $reuse;
+                } else {
+                    $row['created_at'] = $row['created_at'] ?? $now;
+                    if (!$wpdb->insert($item_t, $row)) return self::db_error("Ghi dòng hàng phiếu {$role}");
+                    $item_ids[$role][] = (int) $wpdb->insert_id;
+                }
+            }
+            foreach ($pool as $left) {
+                foreach ($left as $gone) {
+                    $wpdb->delete($item_t, ['local_ledger_item_id' => $gone]);
+                }
             }
         }
         foreach ($ledgers as $l) {
             $role = (string) $l['role'];
             $list = $item_ids[$role] ?? (!empty($l['item_ids_from']) ? ($item_ids[$l['item_ids_from']] ?? []) : []);
             $wpdb->update($ledger_t, ['local_ledger_item_id' => wp_json_encode($list)], ['local_ledger_id' => $ids[$role]]);
+        }
+        if (!$deleted && !empty($ids['return']) && !empty($item_ids['return'])) {
+            self::link_return_sources((int) $ids['return'], $item_ids['return']);
         }
 
         foreach (array_diff_key($known, $ids) as $role => $ledger_id) {
@@ -249,6 +275,68 @@ final class TGS_Acc_Ledger_Mirror
     }
 
     /** Khách theo SĐT trong site: có thì sửa, chưa có thì thêm. `{guest: true}` = khách lẻ chung (CUS-GUEST) như POS cũ. */
+    // [2026-11-27 05:00 PM Võ Hoàng] Chuyển từ TGS_POS_Ledger_Mirror::link_return_sources (bản tgs_pos có, bản cầu nối sót) (đóng góp)
+    /**
+     * Gắn mỗi dòng phiếu hoàn với dòng của đơn bán gốc (`source_ledger_item_id` trong meta), như dịch vụ hoàn của POS cũ vẫn
+     * ghi. Plugin Viettel đọc khoá này để biết dòng hoàn nằm ở dòng nào trên hoá đơn gốc (thiếu thì coi như "không nằm trên
+     * hoá đơn" và bỏ qua điều chỉnh thuế); POS cũ đọc nó để tính số đã hoàn của từng dòng.
+     * Kế toán chỉ biết id dòng của nó nên khớp ở đây: cùng sản phẩm, cùng SKU, cùng cờ quà; nhiều dòng trùng thì ưu tiên dòng
+     * còn đủ số lượng và đơn giá gần nhất. Dòng đã có khoá trỏ vào dòng còn sống của đơn gốc thì giữ nguyên.
+     * @return int số dòng vừa gắn
+     */
+    public static function link_return_sources($return_id, array $return_item_ids)
+    {
+        global $wpdb;
+        $ledger_t = $wpdb->prefix . 'local_ledger';
+        $item_t = $wpdb->prefix . 'local_ledger_item';
+        $parent = (int) $wpdb->get_var($wpdb->prepare("SELECT local_ledger_parent_id FROM {$ledger_t} WHERE local_ledger_id = %d", $return_id));
+        $return_item_ids = array_values(array_filter(array_map('intval', $return_item_ids)));
+        if ($parent <= 0 || !$return_item_ids) return 0;
+        $sale_ids = json_decode((string) $wpdb->get_var($wpdb->prepare("SELECT local_ledger_item_id FROM {$ledger_t} WHERE local_ledger_id = %d", $parent)), true);
+        $sale_ids = is_array($sale_ids) ? array_values(array_filter(array_map('intval', $sale_ids))) : [];
+        if (!$sale_ids) return 0;
+
+        $read = function (array $ids) use ($wpdb, $item_t) {
+            $ph = implode(',', array_fill(0, count($ids), '%d'));
+            return (array) $wpdb->get_results($wpdb->prepare(
+                "SELECT local_ledger_item_id, local_product_name_id, quantity, price, local_ledger_item_meta FROM {$item_t} WHERE local_ledger_item_id IN ({$ph}) ORDER BY local_ledger_item_id",
+                ...$ids
+            ), ARRAY_A);
+        };
+        $meta_of = function ($row) {
+            $m = json_decode((string) ($row['local_ledger_item_meta'] ?? ''), true);
+            return is_array($m) ? $m : [];
+        };
+        $sales = [];
+        foreach ($read($sale_ids) as $s) {
+            $m = $meta_of($s);
+            $sales[] = ['id' => (int) $s['local_ledger_item_id'], 'product' => (int) $s['local_product_name_id'], 'sku' => (string) ($m['sku'] ?? ''),
+                'gift' => !empty($m['is_gift']), 'price' => (float) $s['price'], 'left' => (float) $s['quantity']];
+        }
+
+        $linked = 0;
+        foreach ($read($return_item_ids) as $r) {
+            $m = $meta_of($r);
+            if (!empty($m['source_ledger_item_id']) && in_array((int) $m['source_ledger_item_id'], $sale_ids, true)) continue;
+            $qty = (float) $r['quantity'];
+            $best = null;
+            foreach ($sales as $k => $s) {
+                if ($s['product'] !== (int) $r['local_product_name_id'] || $s['gift'] !== !empty($m['is_gift'])) continue;
+                if ($s['sku'] !== '' && isset($m['sku']) && (string) $m['sku'] !== $s['sku']) continue;
+                $score = [$s['left'] + 1e-9 >= $qty ? 0 : 1, abs($s['price'] - (float) $r['price'])];
+                if ($best === null || $score < $best[1]) $best = [$k, $score];
+            }
+            if ($best === null) continue;
+            $k = $best[0];
+            $sales[$k]['left'] -= $qty;
+            $m['source_ledger_item_id'] = $sales[$k]['id'];
+            $m['source_export_ledger_id'] = $parent;
+            $wpdb->update($item_t, ['local_ledger_item_meta' => wp_json_encode($m, JSON_UNESCAPED_UNICODE)], ['local_ledger_item_id' => (int) $r['local_ledger_item_id']]);
+            $linked++;
+        }
+        return $linked;
+    }
+
     private static function upsert_person(array $person, $now)
     {
         global $wpdb;
