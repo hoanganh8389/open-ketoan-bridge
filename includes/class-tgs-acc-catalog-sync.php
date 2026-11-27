@@ -24,7 +24,8 @@
  *                        cuối cùng báo tgs_cache làm mới gói giá / sản phẩm. dry = chỉ đếm khác biệt, không ghi.
  *   build_import()       dựng dữ liệu nạp ban đầu từ các bảng bên này (POST /api/v1/catalog/import) — chạy một lần lúc
  *                        chuyển sang khai ở kế toán (tools/danh-muc-hang.php nap).
- *   enabled()            công tắc "danh mục lấy từ kế toán" (cấu hình catalog_from_erp hoặc hằng TGS_ACC_CATALOG_FROM_ERP).
+ *   enabled()            danh mục lấy từ kế toán: TỰ BẬT khi mạng đã nối kế toán (C7 — bỏ công tắc catalog_from_erp); hằng
+ *                        TGS_ACC_CATALOG_FROM_ERP trong wp-config thắng (true ép bật, false ép tắt).
  *                        Bật thì: cron 5 phút kéo về + khoá mọi màn sửa mặt hàng / danh mục / giá & ĐVT / sữa < 24 tháng
  *                        bên này: chặn MỌI AJAX ghi bảng danh mục hàng (block_writes, theo danh sách action các plugin khai
  *                        với tgs_cache) + bật các chốt sẵn có (filter tgs_catalog_readonly, tgs_price_edit_locked).
@@ -58,6 +59,8 @@ class TGS_Acc_Catalog_Sync
     const LAST   = 'tgs_acc_catalog_sync_at';  // site option: lần kéo gần nhất + thống kê
     const LOCK   = 'tgs_acc_catalog_sync_lock';
     const CRON   = 'tgs_acc_catalog_sync';
+    /** Có blog nào đủ URL + khoá kế toán (enabled() khi mạng không có khoá chung). */
+    const ANY_READY = 'tgs_acc_catalog_any_ready';
     const MSG_LOCKED = 'Danh mục hàng (mặt hàng, ĐVT & tỉ lệ, bảng giá, giá bán, sữa < 24 tháng) khai ở phần mềm kế toán: Danh mục → Mặt hàng (DM10) / Bảng giá bán (DM14). Bên này chỉ hiển thị, tự cập nhật vài phút một lần.';
 
     /**
@@ -213,12 +216,35 @@ class TGS_Acc_Catalog_Sync
         ]);
     }
 
+    // [2026-11-27 06:00 PM Võ Hoàng] C7 (docs/CAU-HINH-KET-NOI.md) — bỏ công tắc catalog_from_erp: đã nối kế toán thì danh mục hàng
+    // lấy từ kế toán ("mọi cài đặt ở open-ketoan"). Khoá sửa vẫn theo TỪNG BLOG (locked_here / source_default: blog đã nối →
+    // nguồn ketoan), blog chưa nối vẫn sửa tay như cũ. Hằng wp-config vẫn thắng để ép bật / tắt (đóng góp)
+    /** Danh mục hàng lấy từ kế toán? Hằng TGS_ACC_CATALOG_FROM_ERP thắng; không có hằng → mạng (hoặc một blog) đã nối kế toán. */
     public static function enabled()
     {
         if (defined('TGS_ACC_CATALOG_FROM_ERP')) {
             return (bool) TGS_ACC_CATALOG_FROM_ERP;
         }
-        return (string) TGS_Acc_Config::get('catalog_from_erp') === '1';
+        if (TGS_Acc_Config::ready()) {
+            return true;
+        }
+        // Mô hình khoá riêng từng blog: mạng không có khoá chung → xem có blog nào đủ URL + khoá (giữ 10 phút, không gọi mạng).
+        static $any = null;
+        if ($any === null) {
+            $cached = get_site_transient(self::ANY_READY);
+            if ($cached === false) {
+                $cached = '0';
+                foreach (TGS_Acc_Site::blogs() as $blog_id) {
+                    if (TGS_Acc_Config::ready_for((int) $blog_id)) {
+                        $cached = '1';
+                        break;
+                    }
+                }
+                set_site_transient(self::ANY_READY, $cached, 600);
+            }
+            $any = $cached === '1';
+        }
+        return $any;
     }
 
     public static function cron()

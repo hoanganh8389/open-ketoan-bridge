@@ -70,7 +70,7 @@ Ba tầng, đọc từ trên xuống, gặp giá trị đầu tiên thì dừng.
 | `TGS_KETOAN_SSO_AUD` (hằng, tuỳ chọn) | M | Tên app đích trong vé SSO (`aud`); mặc định `open-ketoan`, phải bằng `WP_SSO_AUD` bên phần mềm kế toán. Vé luôn mang thêm `sub` = `wp:<ID người dùng WordPress>`. <!-- [2026-11-24 11:10 PM Johnny Chu - Chu Hoàng Anh] SPINE-6 --> |
 | `tax_url`, `tax_key` (sổ thuế) | H → B → M | Sổ thuế cũng là một tenant: theo blog như `key` |
 | `gate_key` (cổng chờ cho kế toán kéo chứng từ) | M | Cấp mạng; ở §5 có cách kế toán chỉ thấy blog của tenant mình |
-| `catalog_from_erp` | — | **Bỏ.** Thay bằng `tgs_okt_connected()` (R-OKT-CONN-1) |
+| `catalog_from_erp` | — | **Đã bỏ (27/11/2026).** Mạng / blog nối kế toán thì danh mục tự lấy từ kế toán; khoá sửa theo từng blog (blog đã nối → nguồn ketoan). Ép bật / tắt: hằng `TGS_ACC_CATALOG_FROM_ERP` trong wp-config |
 
 ### 2.2 Hằng wp-config
 
@@ -234,6 +234,6 @@ Bỏ hẳn `key_legacy` khi mọi blog đã có tenant riêng. Việc tách tena
 | C4 | Màn "Khoá theo shop" (§4) + màn Kết nối của site | `includes/class-tgs-acc-admin.php`, `admin/page-cong-ke-toan.php` |
 | C5 | Sự kiện vào: tìm blog từ tenant trước, rồi mới theo `branchCode` | `includes/class-tgs-acc-ketoan-events.php`, `includes/class-tgs-acc-catalog-sync.php` (route) |
 | C6 | Hàm `tgs_okt_connected()` (bốn điều kiện §0, giữ kết quả 60 giây, kiểm trùng tenant). Bridge cung cấp; open-pos-backend gọi | file mới trong `includes/` |
-| C7 | Bỏ `catalog_from_erp`; gỡ phần kéo catalog vào bảng global khi open-pos-backend nhận việc (S001-BR6) | `includes/class-tgs-acc-catalog-sync.php` |
+| C7 | Bỏ `catalog_from_erp` (**xong 27/11/2026** — `enabled()` tự bật khi đã nối kế toán); gỡ phần kéo catalog vào bảng global khi open-pos-backend nhận việc (S001-BR6) — **còn** | `includes/class-tgs-acc-catalog-sync.php` |
 
 Mỗi dòng một PR nhỏ, theo thứ tự C1 → C2 → C6 → C3 → C4 → C5 → C7.

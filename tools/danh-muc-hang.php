@@ -127,11 +127,8 @@ switch ($cmd) {
 
     case 'bat':
     case 'tat':
-        if (defined('TGS_ACC_CATALOG_FROM_ERP')) {
-            $fail('Công tắc đang đặt bằng hằng TGS_ACC_CATALOG_FROM_ERP trong wp-config.php — sửa ở đó.');
-        }
-        TGS_Acc_Config::save(['catalog_from_erp' => $cmd === 'bat' ? '1' : '0']);
-        $out($cmd === 'bat' ? 'Đã BẬT: danh mục hàng lấy từ kế toán, màn sửa bên này khoá; cron 5 phút kéo về.' : 'Đã TẮT: sửa danh mục hàng bên này như cũ, ngừng kéo về.');
+        // [2026-11-27 06:00 PM Võ Hoàng] C7 — không còn công tắc: nối kế toán là tự lấy danh mục từ kế toán (đóng góp)
+        $fail('Đã bỏ công tắc: mạng nối kế toán thì danh mục tự lấy từ kế toán. Muốn ép bật / tắt: define(\'TGS_ACC_CATALOG_FROM_ERP\', true|false) trong wp-config.php.');
         break;
 
     case 'trang-thai':

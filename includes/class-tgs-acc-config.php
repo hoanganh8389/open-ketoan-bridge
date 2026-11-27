@@ -39,7 +39,7 @@ class TGS_Acc_Config
             'tax_key'    => '',
             'sso_secret' => '',   // khoá chung ký vé đăng nhập phần mềm kế toán bằng tài khoản WordPress (= WP_SSO_SECRET bên kế toán)
             'sso_tenant' => '',   // mã đơn vị kế toán nhận người dùng (trống = đơn vị mặc định bên kế toán)
-            'catalog_from_erp' => '0', // '1' = danh mục hàng (mặt hàng, ĐVT, bảng giá, giá) lấy từ kế toán, khoá sửa bên này (TGS_Acc_Catalog_Sync)
+            'catalog_from_erp' => '0', // KHÔNG CÒN DÙNG (C7, 27/11): nối kế toán là tự lấy danh mục từ kế toán — TGS_Acc_Catalog_Sync::enabled()
             'install_key' => '',  // [2026-11-23 12:10 PM Johnny Chu - Chu Hoàng Anh] OKT-SET-2 — khoá cài đặt open-pos (okti_…) của mô hình nhiều cửa hàng; hằng TGS_KETOAN_INSTALL_KEY thắng
         ];
     }

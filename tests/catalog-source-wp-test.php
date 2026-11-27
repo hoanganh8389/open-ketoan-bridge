@@ -3,7 +3,7 @@
  * SW3 — bridge khoá / nguồn danh mục THEO TỪNG BLOG (tsm tgs_catalog_source). Chạy TRONG WordPress thử, có tsm:
  *
  *   wp --exec="define('TGS_ACC_CATALOG_FROM_ERP', true);" eval-file wp-content/plugins/open-ketoan-bridge/tests/catalog-source-wp-test.php --url=shop-b.okt.local
- *   wp eval-file wp-content/plugins/open-ketoan-bridge/tests/catalog-source-wp-test.php --url=shop-b.okt.local      (công tắc tắt: không đổi gì)
+ *   wp eval-file wp-content/plugins/open-ketoan-bridge/tests/catalog-source-wp-test.php --url=shop-b.okt.local      (27/11 C7: đã nối kế toán = tự bật; ép tắt bằng define(..., false))
  *
  * Không gọi kế toán, không kéo gì. Tự dọn, trả option như cũ.
  */

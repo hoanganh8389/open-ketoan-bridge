@@ -611,7 +611,7 @@ class TGS_Acc_Admin
     {
         self::guard('configure');
         $in = [];
-        foreach (['url', 'web_url', 'key', 'timeout', 'chunk_days', 'realtime', 'tax_url', 'tax_key', 'sso_secret', 'sso_tenant', 'catalog_from_erp'] as $k) {
+        foreach (['url', 'web_url', 'key', 'timeout', 'chunk_days', 'realtime', 'tax_url', 'tax_key', 'sso_secret', 'sso_tenant'] as $k) { // catalog_from_erp bỏ (C7)
             if (isset($_POST[$k])) {
                 $in[$k] = wp_unslash($_POST[$k]);
             }
